@@ -14,6 +14,7 @@
   --bg:#f3f4f6; --surface:#ffffff; --ink:#15202b; --muted:#5b6673; --line:#dde1e6;
   --accent:#d9480f; --accent-ink:#ffffff; --band:#141b2d; --band-ink:#f3f4f6;
   --tough:#c92a2a; --tough-bg:#fde8e8; --mid:#8a6d00; --mid-bg:#fbf3d5; --soft:#2b8a3e; --soft-bg:#e3f5e6;
+  --ol:#2c64a6; --def:#7b3fa0; --tag-ink:#ffffff;
   --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
   --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
   /* brand bar, matched to Matchup Hub; the same in light and dark */
@@ -23,11 +24,11 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0f141a; --surface:#18202a; --ink:#e6eaef; --muted:#9aa5b1; --line:#2a3440;
   --accent:#ff7a3d; --accent-ink:#1a0d05; --band:#0a0e12; --band-ink:#e6eaef;
-  --tough:#ff8787; --tough-bg:#3a1c1f; --mid:#f0c84a; --mid-bg:#352d14; --soft:#69db7c; --soft-bg:#17321e; color-scheme:dark}}
+  --tough:#ff8787; --tough-bg:#3a1c1f; --mid:#f0c84a; --mid-bg:#352d14; --soft:#69db7c; --soft-bg:#17321e; --ol:#7fb2ea; --def:#c9a0ea; --tag-ink:#0f141a; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0f141a; --surface:#18202a; --ink:#e6eaef; --muted:#9aa5b1; --line:#2a3440;
   --accent:#ff7a3d; --accent-ink:#1a0d05; --band:#0a0e12; --band-ink:#e6eaef;
-  --tough:#ff8787; --tough-bg:#3a1c1f; --mid:#f0c84a; --mid-bg:#352d14; --soft:#69db7c; --soft-bg:#17321e; color-scheme:dark}
+  --tough:#ff8787; --tough-bg:#3a1c1f; --mid:#f0c84a; --mid-bg:#352d14; --soft:#69db7c; --soft-bg:#17321e; --ol:#7fb2ea; --def:#c9a0ea; --tag-ink:#0f141a; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
 .wrap{max-width:1180px;margin:0 auto;padding-inline:16px}
@@ -100,6 +101,14 @@ footer a{color:var(--accent)}
 .dinj-key{margin:0 0 4px;color:var(--tough);font-weight:600;font-size:13px}
 .dinj ul{margin:4px 0 2px;padding-left:18px} .dinj li{margin:2px 0} .dinj i{font-style:normal;font-weight:600;color:var(--ink)}
 .chip .hurt{margin-left:4px;font-weight:700;color:var(--tough)}
+.unit-block{margin:6px 0;padding:3px 0 3px 10px;border-left:3px solid var(--line);font-size:13px;color:var(--muted)}
+.unit-block.ol{border-left-color:var(--ol)} .unit-block.def{border-left-color:var(--def)}
+.unit-head b{color:var(--ink);font-weight:600}
+.unit-tag{display:inline-block;font:700 10px/1.5 var(--body);letter-spacing:.08em;padding:0 6px;border-radius:4px;margin-right:6px;color:var(--tag-ink);vertical-align:1px}
+.unit-tag.ol{background:var(--ol)} .unit-tag.def{background:var(--def)}
+.unit-key{margin:2px 0 0;color:var(--tough);font-weight:600}
+.unit-block details{margin-top:1px} .unit-block summary{cursor:pointer;color:var(--accent);font-size:12px;font-weight:600}
+.unit-block ul{margin:2px 0 0;padding-left:18px} .unit-block i{font-style:normal;font-weight:600;color:var(--ink)}
 .ol-none{margin:0;font-size:13px;color:var(--muted)}
 .olinj{margin-bottom:2px}
 .odds{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:6px 14px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
@@ -141,6 +150,7 @@ footer a{color:var(--accent)}
       <span><i class="sw" style="background:var(--mid)"></i>Neutral (11–22)</span>
       <span><i class="sw" style="background:var(--tough)"></i>Tough (1–10)</span>
       <span>Q / D = questionable / doubtful</span>
+      <span><span class="unit-tag ol">OL</span>the offense's own line <span class="unit-tag def" style="margin-left:8px">DEF</span>the defense it faces</span>
       <span>Pts = implied team total from the spread and over/under (green = among the week's highest)</span>
       <span><b style="color:var(--tough)">+</b> on a rank = a starter-level absence in that defensive unit (hover for names)</span>
     </div>
@@ -201,23 +211,38 @@ const STAT={Q:"Questionable",D:"Doubtful",O:"Out"};
 function dinjSplit(team){const l=DINJ[team]||[];return{sec:l.filter(x=>SECONDARY.has(x[1])),front:l.filter(x=>!SECONDARY.has(x[1]))}}
 function dinjCount(list){const c={O:0,D:0,Q:0};list.forEach(x=>c[x[2]]++);return c}
 function dinjSummary(list){const c=dinjCount(list);return [c.O&&c.O+" out",c.D&&c.D+" doubtful",c.Q&&c.Q+" questionable"].filter(Boolean).join(", ")||"none listed"}
-function dinjBlock(team){
-  const {sec,front}=dinjSplit(team);
-  const wrap=document.createElement("div");wrap.className="dinj";const box=document.createElement("details");wrap.append(box);
-  const all=[...sec,...front];
+// injury blocks: OL = this offense's own line (blue), DEF = the defense it faces (purple)
+const POS={T:"OT",G:"OG",C:"C",OL:"OL",DE:"DE",DT:"DT",DL:"DL",LB:"LB",CB:"CB",S:"S",DB:"DB"};
+const DLINE=new Set(["DE","DT","DL"]);
+const shortCount=l=>{const c=dinjCount(l);return [c.O&&c.O+" out",c.D&&c.D+" doubtful",c.Q&&c.Q+" questionable"].filter(Boolean).join(", ")||"none"};
+function unitBlock(kind,label,groups){
+  const all=groups.flatMap(g=>g[1]);
+  const wrap=document.createElement("div");wrap.className="unit-block "+kind;
+  const head=document.createElement("div");head.className="unit-head";
+  const tag=`<span class="unit-tag ${kind}">${kind==="ol"?"OL":"DEF"}</span>`;
+  const sum=!all.length?"no injuries listed":groups.length>1?groups.map(g=>`${g[2]}: ${shortCount(g[1])}`).join(" · "):shortCount(all);
+  head.innerHTML=`${tag}<b>${label}</b> <span class="unit-sum">${sum}</span>`;wrap.append(head);
+  if(!all.length)return wrap;
   const key=all.filter(x=>x[2]!=="Q");
-  const sum=document.createElement("summary");
-  sum.innerHTML=`<b>${team} defense injuries</b> <span>Pass D: ${dinjSummary(sec)} · Run D: ${dinjSummary(front)}</span>`;
-  box.append(sum);
-  if(key.length){const k=document.createElement("p");k.className="dinj-key";k.textContent=`${team} defense missing or doubtful: `+key.map(x=>`${x[1]} ${x[0]} (${STAT[x[2]]}, ${x[3]})`).join("; ");wrap.prepend(k)}
-  const ul=document.createElement("ul");
-  for(const [label,l] of [["Secondary (pass D)",sec],["Front seven (run D)",front]]){
-    if(!l.length) continue;
-    const li=document.createElement("li");li.innerHTML=`<i>${label}:</i> `;
-    li.append(l.map(x=>`${x[1]} ${x[0]} — ${STAT[x[2]]} (${x[3]})`).join("; "));ul.append(li);
+  if(key.length){const k=document.createElement("p");k.className="unit-key";k.textContent="Out or doubtful: "+key.map(x=>`${POS[x[1]]||x[1]} ${x[0]} (${STAT[x[2]].toLowerCase()}, ${x[3].toLowerCase()})`).join("; ");wrap.append(k)}
+  const q=all.filter(x=>x[2]==="Q");
+  if(q.length){
+    const box=document.createElement("details");
+    const s2=document.createElement("summary");s2.textContent=`${q.length} questionable`;box.append(s2);
+    const ul=document.createElement("ul");
+    for(const [glabel,l] of groups){const gq=l.filter(x=>x[2]==="Q");if(!gq.length)continue;
+      const li=document.createElement("li");li.innerHTML=groups.length>1?`<i>${glabel}:</i> `:"";
+      li.append(gq.map(x=>`${POS[x[1]]||x[1]} ${x[0]} (${x[3].toLowerCase()})`).join("; "));ul.append(li)}
+    box.append(ul);wrap.append(box);
   }
-  if(!all.length){const li=document.createElement("li");li.textContent="No defensive players with a game status.";ul.append(li)}
-  box.append(ul);return wrap;
+  return wrap;
+}
+function dinjBlock(team){
+  const l=DINJ[team]||[];
+  return unitBlock("def",`${TEAMS[team]} defense`,[
+    ["Defensive line",l.filter(x=>DLINE.has(x[1])),"DL"],
+    ["Linebackers",l.filter(x=>x[1]==="LB"),"LB"],
+    ["Secondary",l.filter(x=>SECONDARY.has(x[1])),"DB"]]);
 }
 
 const impTier=t=>{const r=impRank[t],n=Object.keys(IMP).length;return r<=Math.round(n/3)?"s":r>n-Math.round(n/3)?"t":"m"};
@@ -601,18 +626,8 @@ function teamCard(a,h,iso,note){
   return card;
 }
 const chipHtml=(r,txt)=>`<span class="chip ${tier(r)}">${ord(r)} <span class="sm">· ${txt}</span></span>`;
-// the offense's own line: who is out or doubtful up front, with questionable players behind a toggle
 function olBlock(team){
-  const l=OLINJ[team]||[];
-  const wrap=document.createElement("div");wrap.className="dinj olinj";
-  if(!l.length){const p=document.createElement("p");p.className="ol-none";p.textContent=`${team} O-line: no injuries listed`;wrap.append(p);return wrap}
-  const box=document.createElement("details");
-  const sum=document.createElement("summary");sum.innerHTML=`<b>${team} O-line injuries</b> <span>${dinjSummary(l)}</span>`;box.append(sum);
-  const ul=document.createElement("ul"),li=document.createElement("li");
-  li.textContent=l.map(x=>`${x[1]} ${x[0]} — ${STAT[x[2]]} (${x[3]})`).join("; ");ul.append(li);box.append(ul);wrap.append(box);
-  const key=l.filter(x=>x[2]!=="Q");
-  if(key.length){const k=document.createElement("p");k.className="dinj-key";k.textContent=`${team} line missing or doubtful: `+key.map(x=>`${x[1]} ${x[0]} (${STAT[x[2]]}, ${x[3]})`).join("; ");wrap.prepend(k)}
-  return wrap;
+  return unitBlock("ol",`${TEAMS[team]} offensive line`,[["Offensive line",OLINJ[team]||[],"OL"]]);
 }
 function renderGames(all){
   const box=document.getElementById("games");box.textContent="";
