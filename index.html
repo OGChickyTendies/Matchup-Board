@@ -76,6 +76,8 @@ tr:last-child td{border-bottom:0}
 h2{font-family:var(--display);font-size:28px;font-weight:700;text-transform:uppercase;margin:36px 0 4px;letter-spacing:.02em}
 .note{color:var(--muted);font-size:14px;max-width:72ch;margin:0 0 12px}
 .byes{margin-top:16px;color:var(--muted);font-size:14px}
+.weeknote{margin:0 0 16px;padding:10px 14px;border:1px dashed var(--line);border-radius:10px;background:var(--surface);color:var(--muted);font-size:14px}
+.seg.weeks{max-width:100%;overflow-x:auto}
 footer{color:var(--muted);font-size:13px;padding-block:8px 32px}
 footer a{color:var(--accent)}
 .empty{padding:24px;color:var(--muted)}
@@ -130,7 +132,7 @@ footer a{color:var(--accent)}
 </div>
 <header class="band">
   <div class="wrap">
-    <div class="eyebrow">NFL · 2026 Week 5 · Oct 8–12 · Updated Thu Oct 8, 4:16 PM MT</div>
+    <div class="eyebrow" id="eyebrow">NFL · 2026</div>
     <p class="sub">Every projected offensive starter, the defense he faces, and how that defense has held up. QBs, WRs and TEs are graded against the opponent's pass defense; RBs against its run defense. Ranks run 1–32, where 32 is the most yards allowed per game.</p>
     <div class="legend">
       <span><i class="sw" style="background:var(--soft)"></i>Soft matchup (rank 23–32)</span>
@@ -149,6 +151,7 @@ footer a{color:var(--accent)}
 
 <div class="controls">
   <div class="wrap">
+    <div class="seg weeks" role="group" aria-label="Week" id="weekSeg"></div>
     <div class="seg" role="group" aria-label="View">
       <button id="v-games" aria-pressed="true" data-view="games">By game</button>
       <button id="v-list" aria-pressed="false" data-view="list">All starters</button>
@@ -169,26 +172,67 @@ footer a{color:var(--accent)}
 </div>
 
 <main class="wrap">
+  <p class="weeknote" id="weekNote" hidden></p>
   <section id="gamesView"><div class="games" id="games"></div></section>
   <section id="listView" hidden>
     <div class="tablebox"><table id="plist"><thead></thead><tbody></tbody></table></div>
   </section>
-  <p class="byes">On bye: Kansas City Chiefs, Carolina Panthers.</p>
+  <p class="byes" id="byes"></p>
 
   <h2>Defense vs. run and pass</h2>
-  <p class="note">Season totals through Week 4 (four games each). Pass yards are gross passing yards allowed. Click a column to sort.</p>
+  <p class="note" id="defNote"></p>
   <div class="tablebox"><table id="dtable"><thead></thead><tbody></tbody></table></div>
 </main>
 
 <footer class="wrap">
-  Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for offense and defense: CBS Sports practice-week report (Q questionable, D doubtful, O out); final statuses come Friday and inactives 90 minutes before kickoff. Weather: RotoWire forecasts. Lines: CBS Sports odds as of Thu Oct 8 (spreads and totals move during the week). Defense: NFL.com team defense stats, 2026 regular season. Schedule: CBS Sports. Times are Mountain.
+  Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for offense and defense: CBS Sports practice-week report (Q questionable, D doubtful, O out); final statuses come Friday and inactives 90 minutes before kickoff. Weather: RotoWire forecasts. Lines: CBS Sports odds (spreads and totals move during the week). Defense: NFL.com team defense stats, 2026 regular season. Schedule: CBS Sports. Times are Mountain.
 </footer>
 
 <script>
+const CITY={ARI:"Arizona",ATL:"Atlanta",BAL:"Baltimore",BUF:"Buffalo",CAR:"Carolina",CHI:"Chicago",CIN:"Cincinnati",CLE:"Cleveland",DAL:"Dallas",DEN:"Denver",DET:"Detroit",GB:"Green Bay",HOU:"Houston",IND:"Indianapolis",JAX:"Jacksonville",KC:"Kansas City",LAC:"Los Angeles",LAR:"Los Angeles",LV:"Las Vegas",MIA:"Miami",MIN:"Minnesota",NE:"New England",NO:"New Orleans",NYG:"New York",NYJ:"New York",PHI:"Philadelphia",PIT:"Pittsburgh",SEA:"Seattle",SF:"San Francisco",TB:"Tampa Bay",TEN:"Tennessee",WAS:"Washington"};
+const teamFull=t=>CITY[t]+" "+TEAMS[t];
 const TEAMS={ARI:"Cardinals",ATL:"Falcons",BAL:"Ravens",BUF:"Bills",CAR:"Panthers",CHI:"Bears",CIN:"Bengals",CLE:"Browns",DAL:"Cowboys",DEN:"Broncos",DET:"Lions",GB:"Packers",HOU:"Texans",IND:"Colts",JAX:"Jaguars",KC:"Chiefs",LAC:"Chargers",LAR:"Rams",LV:"Raiders",MIA:"Dolphins",MIN:"Vikings",NE:"Patriots",NO:"Saints",NYG:"Giants",NYJ:"Jets",PHI:"Eagles",PIT:"Steelers",SEA:"Seahawks",SF:"49ers",TB:"Buccaneers",TEN:"Titans",WAS:"Commanders"};
-const GP=4;
-// [rushAtt, rushYds, rushTD, passAtt, passCmp, passYds, passTD, INT, sacks]
-const DEF={
+
+
+const SECONDARY=new Set(["CB","S","DB"]);
+const STAT={Q:"Questionable",D:"Doubtful",O:"Out"};
+function dinjSplit(team){const l=DINJ[team]||[];return{sec:l.filter(x=>SECONDARY.has(x[1])),front:l.filter(x=>!SECONDARY.has(x[1]))}}
+function dinjCount(list){const c={O:0,D:0,Q:0};list.forEach(x=>c[x[2]]++);return c}
+function dinjSummary(list){const c=dinjCount(list);return [c.O&&c.O+" out",c.D&&c.D+" doubtful",c.Q&&c.Q+" questionable"].filter(Boolean).join(", ")||"none listed"}
+function dinjBlock(team){
+  const {sec,front}=dinjSplit(team);
+  const wrap=document.createElement("div");wrap.className="dinj";const box=document.createElement("details");wrap.append(box);
+  const all=[...sec,...front];
+  const key=all.filter(x=>x[2]!=="Q");
+  const sum=document.createElement("summary");
+  sum.innerHTML=`<b>${team} defense injuries</b> <span>Pass D: ${dinjSummary(sec)} · Run D: ${dinjSummary(front)}</span>`;
+  box.append(sum);
+  if(key.length){const k=document.createElement("p");k.className="dinj-key";k.textContent="Missing or doubtful: "+key.map(x=>`${x[1]} ${x[0]} (${STAT[x[2]]}, ${x[3]})`).join("; ");wrap.prepend(k)}
+  const ul=document.createElement("ul");
+  for(const [label,l] of [["Secondary (pass D)",sec],["Front seven (run D)",front]]){
+    if(!l.length) continue;
+    const li=document.createElement("li");li.innerHTML=`<i>${label}:</i> `;
+    li.append(l.map(x=>`${x[1]} ${x[0]} — ${STAT[x[2]]} (${x[3]})`).join("; "));ul.append(li);
+  }
+  if(!all.length){const li=document.createElement("li");li.textContent="No defensive players with a game status.";ul.append(li)}
+  box.append(ul);return wrap;
+}
+
+const impTier=t=>{const r=impRank[t],n=Object.keys(IMP).length;return r<=Math.round(n/3)?"s":r>n-Math.round(n/3)?"t":"m"};
+const fmtLine=v=>v===0?"PK":(v>0?"+":"−")+Math.abs(v);
+function lineText(a,h){const o=ODDS[h];if(!o)return"";const fav=o[0]<0?h:a;return o[0]===0?`Pick'em · O/U ${o[1]}`:`${fav} ${fmtLine(-Math.abs(o[0]))} · O/U ${o[1]}`}
+
+/* ---------- week data ----------
+   One entry per week. status: "live" = the week being played (injuries, weather and lines kept current),
+   "final" = a finished week kept as it was, "preview" = next week's matchups before its Thursday rebuild.
+   Each week: GAMES [away, home, kickoff UTC, note]; DEF team: [rushAtt, rushYds, rushTD, passAtt, passCmp, passYds,
+   passTD, INT, sacks], season totals through week defThrough over GP games; STARTERS team: [QB, RB, [WR, WR, WR], TE];
+   INJ player: [Q/D/O, injury]; FILLIN backup: note; WX home team: [type, forecast, impact 0-2];
+   DINJ team: [[name, pos, Q/D/O, injury]]; ODDS home team: [home spread (negative = home favored), over/under]. */
+const WEEKS={
+5:{status:"live",dates:"Oct 8–12",updated:"Thu Oct 8, 4:16 PM MT",updatedAt:"2026-10-08T22:16:00Z",byes:["KC","CAR"],defThrough:4,
+GP:4,
+DEF:{
 CHI:[83,410,3,99,58,776,4,3,10],ATL:[71,193,2,178,105,1106,7,1,7],BAL:[103,400,6,136,91,916,4,2,7],NE:[95,416,4,126,82,822,5,3,8],
 LV:[104,538,4,126,74,892,7,4,12],NYG:[93,436,2,136,88,849,9,6,3],KC:[104,371,3,147,90,916,4,4,4],WAS:[94,374,3,136,91,1018,11,3,7],
 MIN:[91,378,1,131,67,881,3,4,16],SF:[107,399,2,145,94,859,4,1,6],IND:[109,524,5,136,83,1105,6,1,9],JAX:[91,297,2,138,95,1166,3,6,10],
@@ -196,17 +240,15 @@ LAC:[129,487,6,114,75,902,6,4,10],SEA:[112,408,1,124,78,645,6,6,11],BUF:[115,464
 ARI:[112,470,3,109,69,991,11,3,8],PHI:[121,488,7,139,87,911,4,2,4],CLE:[99,453,0,145,87,1017,9,4,12],NO:[117,591,9,123,84,912,7,1,8],
 NYJ:[116,494,4,127,85,822,5,1,9],DET:[108,479,6,165,115,1308,11,2,15],TB:[98,314,1,124,86,857,6,3,6],MIA:[120,436,4,113,88,940,7,3,4],
 CAR:[116,626,7,144,88,970,5,3,8],DAL:[126,601,4,115,82,970,9,0,4],DEN:[120,571,4,141,81,981,6,4,8],TEN:[134,491,4,112,82,882,4,2,8],
-HOU:[100,335,5,141,96,1111,6,1,14],PIT:[104,451,3,114,78,901,5,4,10],CIN:[88,398,3,141,90,1088,4,1,14],GB:[133,557,7,117,79,802,6,4,10]};
-// kickoff in UTC
-const GAMES=[
+HOU:[100,335,5,141,96,1111,6,1,14],PIT:[104,451,3,114,78,901,5,4,10],CIN:[88,398,3,141,90,1088,4,1,14],GB:[133,557,7,117,79,802,6,4,10]},
+GAMES:[
 ["TB","DAL","2026-10-09T00:15Z",""],["PHI","JAX","2026-10-11T13:30Z","London"],
 ["CIN","MIA","2026-10-11T17:00Z",""],["CHI","GB","2026-10-11T17:00Z",""],["CLE","NYJ","2026-10-11T17:00Z",""],
 ["HOU","TEN","2026-10-11T17:00Z",""],["IND","PIT","2026-10-11T17:00Z",""],["LV","NE","2026-10-11T17:00Z",""],
 ["MIN","NO","2026-10-11T17:00Z",""],["NYG","WAS","2026-10-11T17:00Z",""],["DEN","LAC","2026-10-11T20:05Z",""],
 ["DET","ARI","2026-10-11T20:25Z",""],["SF","SEA","2026-10-11T20:25Z",""],["BAL","ATL","2026-10-12T00:20Z",""],
-["BUF","LAR","2026-10-13T00:15Z",""]];
-// QB, RB, [WR slots], TE
-const STARTERS={
+["BUF","LAR","2026-10-13T00:15Z",""]],
+STARTERS:{
 ARI:["Jacoby Brissett","Jeremiyah Love",["Marvin Harrison Jr.","Michael Wilson","Kendrick Bourne"],"Trey McBride"],
 ATL:["Michael Penix Jr.","Bijan Robinson",["Drake London","Jahan Dotson","Olamide Zaccheaus"],"Kyle Pitts Sr."],
 BAL:["Lamar Jackson","Derrick Henry",["Rashod Bateman","Chris Moore","Zay Flowers"],"Mark Andrews"],
@@ -236,10 +278,8 @@ SEA:["Sam Darnold","Emanuel Wilson",["Jaxon Smith-Njigba","Rashid Shaheed","Coop
 SF:["Brock Purdy","Christian McCaffrey",["Mike Evans","Jacob Cowing","Deebo Samuel Sr."],"George Kittle"],
 TB:["Jalon Daniels","Bucky Irving",["Ted Hurst III","Emeka Egbuka","Chris Godwin Jr."],"Cade Otton"],
 TEN:["Cam Ward","Tony Pollard",["Elic Ayomanor","Carnell Tate","Wan'Dale Robinson"],"Gunnar Helm"],
-WAS:["Jayden Daniels","Jacory Croskey-Merritt",["Terry McLaurin","Dyami Brown","Stefon Diggs"],"Chig Okonkwo"]};
-
-// injury status for listed starters: [status, injury]  Q=Questionable D=Doubtful O=Out
-const INJ={"Jeremiyah Love":["Q","Ankle"],"Zay Flowers":["Q","Foot"],"Rashod Bateman":["Q","Shoulder"],"Chris Moore":["Q","Ankle"],"Lamar Jackson":["Q","Ankle"],
+WAS:["Jayden Daniels","Jacory Croskey-Merritt",["Terry McLaurin","Dyami Brown","Stefon Diggs"],"Chig Okonkwo"]},
+INJ:{"Jeremiyah Love":["Q","Ankle"],"Zay Flowers":["Q","Foot"],"Rashod Bateman":["Q","Shoulder"],"Chris Moore":["Q","Ankle"],"Lamar Jackson":["Q","Ankle"],
 "DJ Moore":["Q","Shoulder"],"D'Andre Swift":["Q","Hip"],"Tee Higgins":["Q","Groin"],"Ja'Marr Chase":["Q","Concussion"],"Pat Bryant":["D","Ankle"],
 "Keenan Allen":["Q","Groin"],"Quentin Johnston":["Q","Chest"],"Charlie Kolar":["Q","Forearm"],"Ladd McConkey":["Q","Foot"],
 "Colby Parkinson":["Q","Shoulder"],"Konata Mumpfield":["Q","Shoulder"],"Cody White":["Q","Ankle"],"Brock Bowers":["Q","Knee"],"Jalen Nailor":["Q","Concussion"],
@@ -247,17 +287,13 @@ const INJ={"Jeremiyah Love":["Q","Ankle"],"Zay Flowers":["Q","Foot"],"Rashod Bat
 "Alvin Kamara":["Q","Back"],"Tyler Shough":["Q","Hand"],"Malik Nabers":["Q","Knee"],"Cam Skattebo":["Q","Shoulder"],"Isaiah Likely":["Q","Knee"],"Breece Hall":["D","Quadriceps"],"Adonai Mitchell":["D","Finger"],
 "Saquon Barkley":["Q","Hamstring"],"DeVonta Smith":["Q","Hamstring"],"Dallas Goedert":["Q","Knee"],"Michael Pittman Jr.":["Q","Foot"],
 "Mike Evans":["Q","Ribs"],"Tony Pollard":["Q","Foot"],"Jacory Croskey-Merritt":["Q","Groin"],"Stefon Diggs":["Q","Hamstring"],
-"Terry McLaurin":["Q","Hamstring"],"Chig Okonkwo":["Q","Hamstring"]};
-// backups starting in place of a player ruled out
-const FILLIN={"Jalon Daniels":"Starting for Baker Mayfield (thumb, out)","Tyson Bagent":"Starting for Caleb Williams (hamstring, out)"};
-// forecast by home team: [type, text, impact]  impact: 0 none, 1 watch, 2 likely factor
-const WX={DAL:["Roof","Retractable roof, likely closed",0],JAX:["Outdoor","London · 57°F, cloudy, light breeze",0],GB:["Outdoor","73°F, moderate diagonal wind",1],
+"Terry McLaurin":["Q","Hamstring"],"Chig Okonkwo":["Q","Hamstring"]},
+FILLIN:{"Jalon Daniels":"Starting for Baker Mayfield (thumb, out)","Tyson Bagent":"Starting for Caleb Williams (hamstring, out)"},
+WX:{DAL:["Roof","Retractable roof, likely closed",0],JAX:["Outdoor","London · 57°F, cloudy, light breeze",0],GB:["Outdoor","73°F, moderate diagonal wind",1],
 MIA:["Outdoor","88°F, humid, 21% storms, moderate wind",1],NE:["Outdoor","66°F, partly cloudy",0],NO:["Dome","Indoors",0],NYJ:["Outdoor","66°F, 42% rain",1],
 PIT:["Outdoor","63°F, 85% rain",2],TEN:["Outdoor","68°F, 46% showers and storms",1],WAS:["Outdoor","65°F, 80% rain",2],LAC:["Dome","Indoors",0],
-ARI:["Roof","Retractable roof, likely closed",0],SEA:["Outdoor","57°F, clear",0],ATL:["Roof","Retractable roof, likely closed (rain, wind)",0],LAR:["Dome","Indoors",0]};
-
-// defensive injuries with a Week 5 game status: [name, pos, status, injury]. Secondary = CB/S/DB, front = DL/LB
-const DINJ={
+ARI:["Roof","Retractable roof, likely closed",0],SEA:["Outdoor","57°F, clear",0],ATL:["Roof","Retractable roof, likely closed (rain, wind)",0],LAR:["Dome","Indoors",0]},
+DINJ:{
 ARI:[["Dadrion Taylor-Demerson","S","Q","Back"],["Andrew Wingard","S","Q","Knee"]],
 ATL:[["Yasir Abdullah","LB","Q","Hamstring"],["Cameron Thomas","DE","Q","Shoulder"],["Za'Darius Smith","DE","Q","Concussion"],["Troy Andersen","LB","Q","Knee"],["Kevin King","CB","Q","Undisclosed"],["Malik Verdon","LB","Q","Undisclosed"]],
 BAL:[["Kyle Hamilton","S","Q","Groin"],["Trey Hendrickson","LB","Q","Finger"],["Marlon Humphrey","CB","Q","Calf"],["Reid Williford","LB","Q","Undisclosed"]],
@@ -287,54 +323,101 @@ SEA:[["Tyrice Knight","LB","Q","Ankle"],["Nehemiah Pritchett","CB","Q","Ankle"],
 SF:[["Marques Sigle","S","O","Ankle"],["Nick Bosa","DE","D","Calf"],["James Thompson Jr.","DT","D","Ankle"],["Upton Stout","CB","Q","Shoulder"]],
 TB:[["SirVocea Dennis","LB","O","Ankle"],["Benjamin Morrison","CB","O","Quadriceps"],["Antoine Winfield Jr.","S","O","Ribs"]],
 TEN:[["John Franklin-Myers","DE","Q","Back"],["Jeffery Simmons","DT","Q","Back"],["Amani Hooker","S","Q","Concussion"],["Marcus Harris","CB","Q","Knee"],["Kevin Winston Jr.","S","Q","Shoulder"]],
-WAS:[["Sonny Styles","LB","Q","Groin"],["Frankie Luvu","LB","Q","Groin"],["Percy Butler","S","Q","Hamstring"],["Tyler Owens","DB","Q","Hamstring"],["Charles Omenihu","DE","Q","Groin"],["Marvin Jones Jr.","LB","Q","Undisclosed"]]};
-const SECONDARY=new Set(["CB","S","DB"]);
-const STAT={Q:"Questionable",D:"Doubtful",O:"Out"};
-function dinjSplit(team){const l=DINJ[team]||[];return{sec:l.filter(x=>SECONDARY.has(x[1])),front:l.filter(x=>!SECONDARY.has(x[1]))}}
-function dinjCount(list){const c={O:0,D:0,Q:0};list.forEach(x=>c[x[2]]++);return c}
-function dinjSummary(list){const c=dinjCount(list);return [c.O&&c.O+" out",c.D&&c.D+" doubtful",c.Q&&c.Q+" questionable"].filter(Boolean).join(", ")||"none listed"}
-function dinjBlock(team){
-  const {sec,front}=dinjSplit(team);
-  const wrap=document.createElement("div");wrap.className="dinj";const box=document.createElement("details");wrap.append(box);
-  const all=[...sec,...front];
-  const key=all.filter(x=>x[2]!=="Q");
-  const sum=document.createElement("summary");
-  sum.innerHTML=`<b>${team} defense injuries</b> <span>Pass D: ${dinjSummary(sec)} · Run D: ${dinjSummary(front)}</span>`;
-  box.append(sum);
-  if(key.length){const k=document.createElement("p");k.className="dinj-key";k.textContent="Missing or doubtful: "+key.map(x=>`${x[1]} ${x[0]} (${STAT[x[2]]}, ${x[3]})`).join("; ");wrap.prepend(k)}
-  const ul=document.createElement("ul");
-  for(const [label,l] of [["Secondary (pass D)",sec],["Front seven (run D)",front]]){
-    if(!l.length) continue;
-    const li=document.createElement("li");li.innerHTML=`<i>${label}:</i> `;
-    li.append(l.map(x=>`${x[1]} ${x[0]} — ${STAT[x[2]]} (${x[3]})`).join("; "));ul.append(li);
-  }
-  if(!all.length){const li=document.createElement("li");li.textContent="No defensive players with a game status.";ul.append(li)}
-  box.append(ul);return wrap;
-}
+WAS:[["Sonny Styles","LB","Q","Groin"],["Frankie Luvu","LB","Q","Groin"],["Percy Butler","S","Q","Hamstring"],["Tyler Owens","DB","Q","Hamstring"],["Charles Omenihu","DE","Q","Groin"],["Marvin Jones Jr.","LB","Q","Undisclosed"]]},
+ODDS:{DAL:[-8.5,48.5],JAX:[-7.5,41.5],MIA:[6.5,42.5],NE:[-3.5,44.5],NO:[1.5,41.5],NYJ:[-1.5,39.5],PIT:[-2.5,44.5],TEN:[7.5,37.5],
+WAS:[-3.5,41.5],GB:[1.5,45.5],LAC:[3.5,41.5],ARI:[5.5,54.5],SEA:[-3,45.5],ATL:[-3,43.5],LAR:[-3,54.5]}},
+6:{status:"preview",dates:"Oct 15–19",updated:"",updatedAt:"",byes:["CIN","DET","MIA","MIN"],defThrough:4,
+GP:4,
+DEF:{
+CHI:[83,410,3,99,58,776,4,3,10],ATL:[71,193,2,178,105,1106,7,1,7],BAL:[103,400,6,136,91,916,4,2,7],NE:[95,416,4,126,82,822,5,3,8],
+LV:[104,538,4,126,74,892,7,4,12],NYG:[93,436,2,136,88,849,9,6,3],KC:[104,371,3,147,90,916,4,4,4],WAS:[94,374,3,136,91,1018,11,3,7],
+MIN:[91,378,1,131,67,881,3,4,16],SF:[107,399,2,145,94,859,4,1,6],IND:[109,524,5,136,83,1105,6,1,9],JAX:[91,297,2,138,95,1166,3,6,10],
+LAC:[129,487,6,114,75,902,6,4,10],SEA:[112,408,1,124,78,645,6,6,11],BUF:[115,464,3,147,94,1096,10,2,10],LAR:[103,408,1,127,68,615,7,3,7],
+ARI:[112,470,3,109,69,991,11,3,8],PHI:[121,488,7,139,87,911,4,2,4],CLE:[99,453,0,145,87,1017,9,4,12],NO:[117,591,9,123,84,912,7,1,8],
+NYJ:[116,494,4,127,85,822,5,1,9],DET:[108,479,6,165,115,1308,11,2,15],TB:[98,314,1,124,86,857,6,3,6],MIA:[120,436,4,113,88,940,7,3,4],
+CAR:[116,626,7,144,88,970,5,3,8],DAL:[126,601,4,115,82,970,9,0,4],DEN:[120,571,4,141,81,981,6,4,8],TEN:[134,491,4,112,82,882,4,2,8],
+HOU:[100,335,5,141,96,1111,6,1,14],PIT:[104,451,3,114,78,901,5,4,10],CIN:[88,398,3,141,90,1088,4,1,14],GB:[133,557,7,117,79,802,6,4,10]},
+GAMES:[
+["SEA","DEN","2026-10-16T00:15Z",""],["HOU","JAX","2026-10-18T13:30Z","London"],
+["CAR","PHI","2026-10-18T17:00Z",""],["BAL","CLE","2026-10-18T17:00Z",""],["CHI","ATL","2026-10-18T17:00Z",""],
+["NO","NYG","2026-10-18T17:00Z",""],["NYJ","NE","2026-10-18T17:00Z",""],["PIT","TB","2026-10-18T17:00Z",""],
+["TEN","IND","2026-10-18T17:00Z",""],["ARI","LAR","2026-10-18T20:05Z",""],["BUF","LV","2026-10-18T20:25Z",""],
+["LAC","KC","2026-10-18T20:25Z",""],["DAL","GB","2026-10-19T00:20Z",""],["WAS","SF","2026-10-20T00:15Z",""]],
+STARTERS:{
+ARI:["Jacoby Brissett","Jeremiyah Love",["Marvin Harrison Jr.","Michael Wilson","Kendrick Bourne"],"Trey McBride"],
+ATL:["Michael Penix Jr.","Bijan Robinson",["Drake London","Jahan Dotson","Olamide Zaccheaus"],"Kyle Pitts Sr."],
+BAL:["Lamar Jackson","Derrick Henry",["Rashod Bateman","Chris Moore","Zay Flowers"],"Mark Andrews"],
+BUF:["Josh Allen","James Cook III",["Keon Coleman","DJ Moore","Khalil Shakir"],"Dalton Kincaid"],
+CHI:["Tyson Bagent","D'Andre Swift",["Rome Odunze","Luther Burden III","Kalif Raymond"],"Colston Loveland"],
+CIN:["Joe Burrow","Chase Brown",["Ja'Marr Chase","Tee Higgins","Dohnte Meyers"],"Drew Sample"],
+CLE:["Deshaun Watson","Quinshon Judkins",["Denzel Boston","Jerry Jeudy","KC Concepcion Jr."],"Harold Fannin Jr."],
+DAL:["Dak Prescott","Javonte Williams",["George Pickens","CeeDee Lamb","Ryan Flournoy"],"Jake Ferguson"],
+DEN:["Bo Nix","J.K. Dobbins",["Courtland Sutton","Jaylen Waddle","Pat Bryant"],"Evan Engram"],
+DET:["Jared Goff","Jahmyr Gibbs",["Isaac TeSlaa","Jameson Williams","Amon-Ra St. Brown"],"Sam LaPorta"],
+GB:["Jordan Love","MarShawn Lloyd",["Christian Watson","Matthew Golden","Skyy Moore"],"Tucker Kraft"],
+HOU:["C.J. Stroud","David Montgomery",["Nico Collins","Kayshon Boutte","Xavier Hutchinson"],"Dalton Schultz"],
+IND:["Daniel Jones","Jonathan Taylor",["Laquon Treadwell","Keenan Allen","Josh Downs"],"Tyler Warren"],
+JAX:["Trevor Lawrence","Bhayshul Tuten",["Brian Thomas Jr.","Jakobi Meyers","Parker Washington"],"Brenton Strange"],
+LAC:["Justin Herbert","Omarion Hampton",["Quentin Johnston","Tre' Harris","Ladd McConkey"],"Charlie Kolar"],
+LAR:["Matthew Stafford","Kyren Williams",["Davante Adams","Puka Nacua","Konata Mumpfield"],"Colby Parkinson"],
+LV:["Kirk Cousins","Ashton Jeanty",["Jalen Nailor","Cody White","Tre Tucker"],"Brock Bowers"],
+MIA:["Malik Willis","Ollie Gordon II",["Chris Bell","Caleb Douglas","Malik Washington"],"Greg Dulcich"],
+MIN:["Kyler Murray","Aaron Jones Sr.",["Justin Jefferson","Jordan Addison","Jauan Jennings"],"T.J. Hockenson"],
+NE:["Drake Maye","TreVeyon Henderson",["Romeo Doubs","Mack Hollins","DeMario Douglas"],"Hunter Henry"],
+NO:["Tyler Shough","Alvin Kamara",["Chris Olave","Bryce Lance","Devaughn Vele"],"Juwan Johnson"],
+NYG:["Jameis Winston","Cam Skattebo",["Malik Nabers","Malachi Fields","Darnell Mooney"],"Isaiah Likely"],
+NYJ:["Geno Smith","Breece Hall",["Adonai Mitchell","Garrett Wilson","Isaiah Williams"],"Mason Taylor"],
+PHI:["Jalen Hurts","Saquon Barkley",["Dontayvion Wicks","DeVonta Smith","Makai Lemon"],"Dallas Goedert"],
+PIT:["Aaron Rodgers","Jaylen Warren",["DK Metcalf","Michael Pittman Jr.","Roman Wilson"],"Pat Freiermuth"],
+SEA:["Sam Darnold","Emanuel Wilson",["Jaxon Smith-Njigba","Rashid Shaheed","Cooper Kupp"],"AJ Barner"],
+SF:["Brock Purdy","Christian McCaffrey",["Mike Evans","Jacob Cowing","Deebo Samuel Sr."],"George Kittle"],
+TB:["Jalon Daniels","Bucky Irving",["Ted Hurst III","Emeka Egbuka","Chris Godwin Jr."],"Cade Otton"],
+TEN:["Cam Ward","Tony Pollard",["Elic Ayomanor","Carnell Tate","Wan'Dale Robinson"],"Gunnar Helm"],
+WAS:["Jayden Daniels","Jacory Croskey-Merritt",["Terry McLaurin","Dyami Brown","Stefon Diggs"],"Chig Okonkwo"],
+KC:["Patrick Mahomes","Kenneth Walker",["Jalen Royals","Xavier Worthy","Rashee Rice"],"Travis Kelce"],
+CAR:["Bryce Young","Chuba Hubbard",["Tetairoa McMillan","Brycen Tremayne","Jalen Coker"],"Tommy Tremble"]},
+INJ:{},
+FILLIN:{"Jalon Daniels":"Starting for Baker Mayfield (thumb, out)","Tyson Bagent":"Starting for Caleb Williams (hamstring, out)"},
+WX:{},
+DINJ:{},
+ODDS:{}}
+};
 
-// betting lines by home team: [home spread (negative = home favored), over/under]. Source: CBS Sports odds, Thu Oct 8
-const ODDS={DAL:[-8.5,48.5],JAX:[-7.5,41.5],MIA:[6.5,42.5],NE:[-3.5,44.5],NO:[1.5,41.5],NYJ:[-1.5,39.5],PIT:[-2.5,44.5],TEN:[7.5,37.5],
-WAS:[-3.5,41.5],GB:[1.5,45.5],LAC:[3.5,41.5],ARI:[5.5,54.5],SEA:[-3,45.5],ATL:[-3,43.5],LAR:[-3,54.5]};
-// implied points: home = (total - home spread) / 2, away = (total + home spread) / 2
-const IMP={};
-for(const [a,h] of GAMES){const o=ODDS[h];if(!o)continue;IMP[h]=(o[1]-o[0])/2;IMP[a]=(o[1]+o[0])/2}
-const impRank={};Object.entries(IMP).sort((x,y)=>y[1]-x[1]).forEach(([t],i)=>impRank[t]=i+1);
-const impTier=t=>{const r=impRank[t],n=Object.keys(IMP).length;return r<=Math.round(n/3)?"s":r>n-Math.round(n/3)?"t":"m"};
-const fmtLine=v=>v===0?"PK":(v>0?"+":"−")+Math.abs(v);
-function lineText(a,h){const o=ODDS[h];if(!o)return"";const fav=o[0]<0?h:a;return o[0]===0?`Pick'em · O/U ${o[1]}`:`${fav} ${fmtLine(-Math.abs(o[0]))} · O/U ${o[1]}`}
-
-/* ---------- derived defense numbers and ranks ---------- */
-const D={};
-for(const [t,a] of Object.entries(DEF)){
-  const [ra,ry,rtd,pa,pc,py,ptd,int,sk]=a;
-  D[t]={team:t,ra,ry,rtd,pa,pc,py,ptd,int,sk,
-    rypg:ry/GP, ypc:ry/ra, pypg:py/GP, ypa:py/pa, cmp:100*pc/pa};
+/* ---------- current week and the week on screen ---------- */
+// The current week is the first one whose last game hasn't finished (kickoff + 4 hours); otherwise the latest week.
+function currentWeek(){
+  const ns=Object.keys(WEEKS).map(Number).sort((a,b)=>a-b),now=Date.now();
+  for(const n of ns){const last=Math.max(...WEEKS[n].GAMES.map(g=>Date.parse(g[2])));if(now<last+4*3600e3)return n}
+  return ns[ns.length-1];
 }
+const CURRENT_WEEK=currentWeek();
+let WEEK,W,GP,DEF,GAMES,STARTERS,INJ,FILLIN,WX,DINJ,ODDS,D,IMP,impRank;
 function rankBy(key){ // 1 = fewest allowed (toughest), 32 = most (softest)
   const arr=Object.values(D).sort((x,y)=>x[key]-y[key]);
   arr.forEach((d,i)=>d["r_"+key]=i+1);
 }
-["rypg","ypc","pypg","ypa"].forEach(rankBy);
+function loadWeek(n){
+  WEEK=n;W=WEEKS[n];({GP,DEF,GAMES,STARTERS,INJ,FILLIN,WX,DINJ,ODDS}=W);
+  D={};
+  for(const [t,a] of Object.entries(DEF)){
+    const [ra,ry,rtd,pa,pc,py,ptd,int,sk]=a;
+    D[t]={team:t,ra,ry,rtd,pa,pc,py,ptd,int,sk,rypg:ry/GP,ypc:ry/ra,pypg:py/GP,ypa:py/pa,cmp:100*pc/pa};
+  }
+  ["rypg","ypc","pypg","ypa"].forEach(rankBy);
+  // implied points: home = (total - home spread) / 2, away = (total + home spread) / 2
+  IMP={};
+  for(const [a,h] of GAMES){const o=ODDS[h];if(!o)continue;IMP[h]=(o[1]-o[0])/2;IMP[a]=(o[1]+o[0])/2}
+  impRank={};Object.entries(IMP).sort((x,y)=>y[1]-x[1]).forEach(([t],i)=>impRank[t]=i+1);
+  // a live week that has already finished reads as final until the next rebuild marks it
+  const st=W.status==="live"&&n<CURRENT_WEEK?"final":W.status;
+  const tag=st==="preview"?"Preview":st==="final"?"Final · as of "+W.updated:"Updated "+W.updated;
+  document.getElementById("eyebrow").textContent=`NFL · 2026 Week ${n} · ${W.dates} · ${tag}`;
+  document.getElementById("byes").textContent=W.byes.length?"On bye: "+W.byes.map(teamFull).join(", ")+".":"No teams on bye.";
+  document.getElementById("defNote").textContent=`Season totals through Week ${W.defThrough} (${W.GP} games each). Pass yards are gross passing yards allowed. Click a column to sort.`;
+  const note=document.getElementById("weekNote");
+  note.hidden=st==="live";
+  note.textContent=st==="preview"?`Week ${n} preview: matchups and defense ranks only. Injuries, weather and betting lines are added when this week's board is built Thursday morning.`:st==="final"?`Week ${n} is over. This is the board as it stood ${W.updated}.`:"";
+}
 
 let state={view:"games",pos:"ALL",metric:"ypg",q:""};
 try{const s=JSON.parse(localStorage.getItem("smb-state")||"{}");Object.assign(state,s)}catch(e){}
@@ -391,14 +474,14 @@ function renderGames(all){
     if(sides.every(s=>!s.ps.length)) continue;
     shown++;
     const card=document.createElement("article");card.className="game";
-    const w=WX[h]||["","Forecast unavailable",0];
+    const w=WX[h]||["",W.status==="preview"?"Forecast posts closer to kickoff":"Forecast unavailable",0];
     card.innerHTML=`<div class="game-h"><b>${a} @ ${h}</b><small>${fmtKick(iso)}${note?" · "+note:""}</small></div><div class="wx w${w[2]}"><b>${w[2]===2?"Weather alert":w[2]===1?"Watch":w[0]}</b><span>${w[1]}</span></div>${ODDS[h]?`<div class="odds"><b>${lineText(a,h)}</b><span>Implied: ${a} ${IMP[a].toFixed(1)} · ${h} ${IMP[h].toFixed(1)}</span></div>`:""}`;
     for(const s of sides){
       if(!s.ps.length) continue;
       const o=opp(s.t).opp,d=D[o];
       const side=document.createElement("div");side.className="side";
       side.innerHTML=`<div class="side-h"><span>${TEAMS[s.t]} offense${IMP[s.t]!=null?` <span class="imp ${impTier(s.t)}" title="Implied team total from the spread and over/under; ranked ${ord(impRank[s.t])} of ${Object.keys(IMP).length} this week">${IMP[s.t].toFixed(1)} pts</span>`:""}</span><span>vs ${o}: run ${ord(state.metric==="ypg"?d.r_rypg:d.r_ypc)} · pass ${ord(state.metric==="ypg"?d.r_pypg:d.r_ypa)}</span></div>`;
-      side.append(dinjBlock(o));
+      if(W.status!=="preview")side.append(dinjBlock(o));
       for(const p of s.ps){
         const row=document.createElement("div");row.className="row";
         const pos=document.createElement("span");pos.className="pos";pos.textContent=p.pos;
@@ -432,7 +515,7 @@ function renderList(all){
 let defSort={key:"r_pypg",dir:-1};
 function renderDef(){
   const t=document.getElementById("dtable");
-  const cols=[["team","Team"],["rypg","Rush yds/g",1],["ypc","YPC",1],["rtd","Rush TD",1],["r_rypg","Run rank",1],["pypg","Pass yds/g",1],["ypa","Y/A",1],["cmp","Cmp %",1],["ptd","Pass TD",1],["int","INT",1],["sk","Sacks",1],["r_pypg","Pass rank",1],["inj","Injuries"],["week","Week 5"]];
+  const cols=[["team","Team"],["rypg","Rush yds/g",1],["ypc","YPC",1],["rtd","Rush TD",1],["r_rypg","Run rank",1],["pypg","Pass yds/g",1],["ypa","Y/A",1],["cmp","Cmp %",1],["ptd","Pass TD",1],["int","INT",1],["sk","Sacks",1],["r_pypg","Pass rank",1],["inj","Injuries"],["week","Week "+WEEK]];
   t.tHead.innerHTML="<tr>"+cols.map(([k,l,n])=>`<th class="${n?"num":""}"><button data-k="${k}" ${defSort.key===k?`data-dir="${defSort.dir>0?"▲":"▼"}"`:""}>${l}</button></th>`).join("")+"</tr>";
   const rows=Object.values(D).map(d=>{const o=opp(d.team);const c=dinjCount(DINJ[d.team]||[]);return {...d,inj:o?([c.O&&c.O+" O",c.D&&c.D+" D",c.Q&&c.Q+" Q"].filter(Boolean).join(" · ")||"—"):"Bye",week:o?(o.home?"vs ":"faces ")+o.opp:"Bye"}}).sort((x,y)=>{const k=defSort.key;const a=x[k],b=y[k];return (a>b?1:a<b?-1:0)*defSort.dir});
   const tb=t.tBodies[0];tb.textContent="";
@@ -460,10 +543,20 @@ document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{state.view=b.
 document.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{state.pos=b.dataset.pos;save();render()});
 document.getElementById("metric").onchange=e=>{state.metric=e.target.value;save();render()};
 document.getElementById("q").oninput=e=>{state.q=e.target.value;render()};
-render();renderDef();
+function renderWeeks(){
+  const box=document.getElementById("weekSeg");box.textContent="";
+  for(const n of Object.keys(WEEKS).map(Number).sort((a,b)=>a-b)){
+    const b=document.createElement("button");b.type="button";b.dataset.week=n;
+    b.textContent="Wk "+n+(n===CURRENT_WEEK?" · now":WEEKS[n].status==="preview"?" · preview":"");
+    b.setAttribute("aria-pressed",n===WEEK);
+    b.onclick=()=>{loadWeek(n);renderWeeks();render();renderDef()};
+    box.append(b);
+  }
+}
+loadWeek(CURRENT_WEEK);renderWeeks();render();renderDef();
 
 /* ---------- refresh on open ---------- */
-const UPDATED_AT="2026-10-08T22:16:00Z";
+const UPDATED_AT=WEEKS[CURRENT_WEEK].updatedAt||new Date(0).toISOString();
 const REFRESH_TASK="trig_01JxhzGDigNDKQmhepft2Muh";
 const SERVER="Claude Code Remote";
 const COOLDOWN_MS=2*60*60*1000;
