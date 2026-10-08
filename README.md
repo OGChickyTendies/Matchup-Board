@@ -1,4 +1,4 @@
-# Starter Matchup Board
+# Matchup Board
 
 Weekly NFL starters, the defense each one faces, and how that defense ranks against the run and the pass, with injuries and game-day weather.
 
