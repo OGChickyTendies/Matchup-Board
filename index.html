@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<title>Starter Matchup Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a weekly matchup sheet — slate header band, filter bar, then game-by-game boards or one sortable starter list; defense reference table at the end */
+:root{
+  --bg:#f3f4f6; --surface:#ffffff; --ink:#15202b; --muted:#5b6673; --line:#dde1e6;
+  --accent:#d9480f; --accent-ink:#ffffff; --band:#15202b; --band-ink:#f3f4f6;
+  --tough:#c92a2a; --tough-bg:#fde8e8; --mid:#8a6d00; --mid-bg:#fbf3d5; --soft:#2b8a3e; --soft-bg:#e3f5e6;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f141a; --surface:#18202a; --ink:#e6eaef; --muted:#9aa5b1; --line:#2a3440;
+  --accent:#ff7a3d; --accent-ink:#1a0d05; --band:#0a0e12; --band-ink:#e6eaef;
+  --tough:#ff8787; --tough-bg:#3a1c1f; --mid:#f0c84a; --mid-bg:#352d14; --soft:#69db7c; --soft-bg:#17321e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141a; --surface:#18202a; --ink:#e6eaef; --muted:#9aa5b1; --line:#2a3440;
+  --accent:#ff7a3d; --accent-ink:#1a0d05; --band:#0a0e12; --band-ink:#e6eaef;
+  --tough:#ff8787; --tough-bg:#3a1c1f; --mid:#f0c84a; --mid-bg:#352d14; --soft:#69db7c; --soft-bg:#17321e; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px}
+header.band{background:var(--band);color:var(--band-ink);padding-block:28px 22px}
+.eyebrow{font-family:var(--display);font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-size:14px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(34px,6vw,56px);line-height:.95;margin:6px 0 10px;text-wrap:balance;text-transform:uppercase}
+.sub{color:color-mix(in srgb,var(--band-ink) 72%,transparent);max-width:68ch;margin:0}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:14px;font-size:13px;color:color-mix(in srgb,var(--band-ink) 80%,transparent)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.controls{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding-block:12px}
+.controls .wrap{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:600 14px var(--body);border:0;background:transparent;color:var(--ink);padding:7px 12px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.seg button:focus-visible,select:focus-visible,input:focus-visible,th button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+select,input[type=search]{font:500 14px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+input[type=search]{flex:1 1 180px}
+main{padding-block:20px 40px}
+.games{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:16px}
+.game{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.game-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.game-h b{font-family:var(--display);font-size:24px;font-weight:700;letter-spacing:.02em}
+.game-h small{color:var(--muted);font-size:13px;white-space:nowrap}
+.side{padding:8px 14px 12px}
+.side+.side{border-top:1px dashed var(--line)}
+.side-h{display:flex;justify-content:space-between;gap:8px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px;font-weight:600}
+.row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;align-items:center;padding:4px 0}
+.pos{font-family:var(--display);font-weight:700;font-size:14px;color:var(--muted);letter-spacing:.04em}
+.name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;border-radius:6px;padding:2px 8px;white-space:nowrap}
+.chip.t{background:var(--tough-bg);color:var(--tough)} .chip.m{background:var(--mid-bg);color:var(--mid)} .chip.s{background:var(--soft-bg);color:var(--soft)}
+.chip .sm{font-weight:500;opacity:.85}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:14px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;background:var(--surface);position:sticky;top:0}
+th button{all:unset;cursor:pointer}
+th button[data-dir]::after{content:attr(data-dir);margin-left:4px;color:var(--accent)}
+td.num,th.num{text-align:right}
+tr:last-child td{border-bottom:0}
+h2{font-family:var(--display);font-size:28px;font-weight:700;text-transform:uppercase;margin:36px 0 4px;letter-spacing:.02em}
+.note{color:var(--muted);font-size:14px;max-width:72ch;margin:0 0 12px}
+.byes{margin-top:16px;color:var(--muted);font-size:14px}
+footer{color:var(--muted);font-size:13px;padding-block:8px 32px}
+footer a{color:var(--accent)}
+.empty{padding:24px;color:var(--muted)}
+.fresh{background:var(--surface);border-bottom:1px solid var(--line);padding-block:8px;font-size:14px}
+.fresh .wrap{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.fresh.busy #freshText::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:8px;vertical-align:1px;animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.fresh.busy #freshText::before{animation:none}}
+.fresh button{font:600 13px var(--body);border:1px solid var(--accent);color:var(--accent);background:transparent;border-radius:6px;padding:4px 10px;cursor:pointer}
+.fresh button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.inj{font:700 11px var(--body);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:1px;letter-spacing:.04em}
+.inj.Q{background:var(--mid-bg);color:var(--mid)} .inj.D,.inj.O{background:var(--tough-bg);color:var(--tough)}
+.fill{display:block;font-size:12px;color:var(--muted);white-space:normal}
+.wx{display:flex;gap:6px;align-items:center;padding:6px 14px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--line)}
+.dinj{margin:2px 0 6px;font-size:13px;color:var(--muted)}
+.dinj summary{cursor:pointer;list-style:none;display:flex;flex-wrap:wrap;gap:2px 6px}
+.dinj summary::-webkit-details-marker{display:none}
+.dinj summary::before{content:"▸";color:var(--accent)} .dinj[open] summary::before{content:"▾"}
+.dinj summary b{font-weight:600;color:var(--ink)}
+.dinj-key{margin:0 0 4px;color:var(--tough);font-weight:600;font-size:13px}
+.dinj ul{margin:4px 0 2px;padding-left:18px} .dinj li{margin:2px 0} .dinj i{font-style:normal;font-weight:600;color:var(--ink)}
+.chip .hurt{margin-left:4px;font-weight:700;color:var(--tough)}
+.wx b{font-weight:600;color:var(--ink)} .wx.w1 b{color:var(--mid)} .wx.w2 b{color:var(--tough)}
+@media (max-width:520px){.game-h b{font-size:21px}.chip .sm{display:none}}
+</style>
+
+<header class="band">
+  <div class="wrap">
+    <div class="eyebrow">NFL · 2026 Week 5 · Oct 8–12 · Updated Thu Oct 8, 1:40 PM MT</div>
+    <h1>Starter Matchup Board</h1>
+    <p class="sub">Every projected offensive starter, the defense he faces, and how that defense has held up. QBs, WRs and TEs are graded against the opponent's pass defense; RBs against its run defense. Ranks run 1–32, where 32 is the most yards allowed per game.</p>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--soft)"></i>Soft matchup (rank 23–32)</span>
+      <span><i class="sw" style="background:var(--mid)"></i>Neutral (11–22)</span>
+      <span><i class="sw" style="background:var(--tough)"></i>Tough (1–10)</span>
+      <span>Q / D = questionable / doubtful</span>
+      <span><b style="color:var(--tough)">+</b> on a rank = a starter-level absence in that defensive unit (hover for names)</span>
+    </div>
+  </div>
+</header>
+
+<div class="fresh" id="fresh" role="status" aria-live="polite">
+  <div class="wrap"><span id="freshText">Checking for newer injury and weather news…</span><button id="refreshBtn" type="button" hidden>Refresh now</button></div>
+</div>
+
+<div class="controls">
+  <div class="wrap">
+    <div class="seg" role="group" aria-label="View">
+      <button id="v-games" aria-pressed="true" data-view="games">By game</button>
+      <button id="v-list" aria-pressed="false" data-view="list">All starters</button>
+    </div>
+    <div class="seg" role="group" aria-label="Position" id="posSeg">
+      <button aria-pressed="true" data-pos="ALL">All</button>
+      <button aria-pressed="false" data-pos="QB">QB</button>
+      <button aria-pressed="false" data-pos="RB">RB</button>
+      <button aria-pressed="false" data-pos="WR">WR</button>
+      <button aria-pressed="false" data-pos="TE">TE</button>
+    </div>
+    <select id="metric" aria-label="Rank defenses by">
+      <option value="ypg">Rank by yards allowed / game</option>
+      <option value="eff">Rank by yards / play (YPC, Y/A)</option>
+    </select>
+    <input type="search" id="q" placeholder="Search player or team" aria-label="Search player or team">
+  </div>
+</div>
+
+<main class="wrap">
+  <section id="gamesView"><div class="games" id="games"></div></section>
+  <section id="listView" hidden>
+    <div class="tablebox"><table id="plist"><thead></thead><tbody></tbody></table></div>
+  </section>
+  <p class="byes">On bye: Kansas City Chiefs, Carolina Panthers.</p>
+
+  <h2>Defense vs. run and pass</h2>
+  <p class="note">Season totals through Week 4 (four games each). Pass yards are gross passing yards allowed. Click a column to sort.</p>
+  <div class="tablebox"><table id="dtable"><thead></thead><tbody></tbody></table></div>
+</main>
+
+<footer class="wrap">
+  Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for offense and defense: CBS Sports practice-week report (Q questionable, D doubtful, O out); final statuses come Friday and inactives 90 minutes before kickoff. Weather: RotoWire forecasts. Defense: NFL.com team defense stats, 2026 regular season. Schedule: CBS Sports. Times are Mountain.
+</footer>
+
+<script>
+const TEAMS={ARI:"Cardinals",ATL:"Falcons",BAL:"Ravens",BUF:"Bills",CAR:"Panthers",CHI:"Bears",CIN:"Bengals",CLE:"Browns",DAL:"Cowboys",DEN:"Broncos",DET:"Lions",GB:"Packers",HOU:"Texans",IND:"Colts",JAX:"Jaguars",KC:"Chiefs",LAC:"Chargers",LAR:"Rams",LV:"Raiders",MIA:"Dolphins",MIN:"Vikings",NE:"Patriots",NO:"Saints",NYG:"Giants",NYJ:"Jets",PHI:"Eagles",PIT:"Steelers",SEA:"Seahawks",SF:"49ers",TB:"Buccaneers",TEN:"Titans",WAS:"Commanders"};
+const GP=4;
+// [rushAtt, rushYds, rushTD, passAtt, passCmp, passYds, passTD, INT, sacks]
+const DEF={
+CHI:[83,410,3,99,58,776,4,3,10],ATL:[71,193,2,178,105,1106,7,1,7],BAL:[103,400,6,136,91,916,4,2,7],NE:[95,416,4,126,82,822,5,3,8],
+LV:[104,538,4,126,74,892,7,4,12],NYG:[93,436,2,136,88,849,9,6,3],KC:[104,371,3,147,90,916,4,4,4],WAS:[94,374,3,136,91,1018,11,3,7],
+MIN:[91,378,1,131,67,881,3,4,16],SF:[107,399,2,145,94,859,4,1,6],IND:[109,524,5,136,83,1105,6,1,9],JAX:[91,297,2,138,95,1166,3,6,10],
+LAC:[129,487,6,114,75,902,6,4,10],SEA:[112,408,1,124,78,645,6,6,11],BUF:[115,464,3,147,94,1096,10,2,10],LAR:[103,408,1,127,68,615,7,3,7],
+ARI:[112,470,3,109,69,991,11,3,8],PHI:[121,488,7,139,87,911,4,2,4],CLE:[99,453,0,145,87,1017,9,4,12],NO:[117,591,9,123,84,912,7,1,8],
+NYJ:[116,494,4,127,85,822,5,1,9],DET:[108,479,6,165,115,1308,11,2,15],TB:[98,314,1,124,86,857,6,3,6],MIA:[120,436,4,113,88,940,7,3,4],
+CAR:[116,626,7,144,88,970,5,3,8],DAL:[126,601,4,115,82,970,9,0,4],DEN:[120,571,4,141,81,981,6,4,8],TEN:[134,491,4,112,82,882,4,2,8],
+HOU:[100,335,5,141,96,1111,6,1,14],PIT:[104,451,3,114,78,901,5,4,10],CIN:[88,398,3,141,90,1088,4,1,14],GB:[133,557,7,117,79,802,6,4,10]};
+// kickoff in UTC
+const GAMES=[
+["TB","DAL","2026-10-09T00:15Z",""],["PHI","JAX","2026-10-11T13:30Z","London"],
+["CIN","MIA","2026-10-11T17:00Z",""],["CHI","GB","2026-10-11T17:00Z",""],["CLE","NYJ","2026-10-11T17:00Z",""],
+["HOU","TEN","2026-10-11T17:00Z",""],["IND","PIT","2026-10-11T17:00Z",""],["LV","NE","2026-10-11T17:00Z",""],
+["MIN","NO","2026-10-11T17:00Z",""],["NYG","WAS","2026-10-11T17:00Z",""],["DEN","LAC","2026-10-11T20:05Z",""],
+["DET","ARI","2026-10-11T20:25Z",""],["SF","SEA","2026-10-11T20:25Z",""],["BAL","ATL","2026-10-12T00:20Z",""],
+["BUF","LAR","2026-10-13T00:15Z",""]];
+// QB, RB, [WR slots], TE
+const STARTERS={
+ARI:["Jacoby Brissett","Jeremiyah Love",["Marvin Harrison Jr.","Michael Wilson","Kendrick Bourne"],"Trey McBride"],
+ATL:["Michael Penix Jr.","Bijan Robinson",["Drake London","Jahan Dotson","Olamide Zaccheaus"],"Kyle Pitts Sr."],
+BAL:["Lamar Jackson","Derrick Henry",["Rashod Bateman","Chris Moore","Zay Flowers"],"Mark Andrews"],
+BUF:["Josh Allen","James Cook III",["Keon Coleman","DJ Moore","Khalil Shakir"],"Dalton Kincaid"],
+CHI:["Tyson Bagent","D'Andre Swift",["Rome Odunze","Luther Burden III","Kalif Raymond"],"Colston Loveland"],
+CIN:["Joe Burrow","Chase Brown",["Ja'Marr Chase","Tee Higgins","Dohnte Meyers"],"Drew Sample"],
+CLE:["Deshaun Watson","Quinshon Judkins",["Denzel Boston","Jerry Jeudy","KC Concepcion Jr."],"Harold Fannin Jr."],
+DAL:["Dak Prescott","Javonte Williams",["George Pickens","CeeDee Lamb","Ryan Flournoy"],"Jake Ferguson"],
+DEN:["Bo Nix","J.K. Dobbins",["Courtland Sutton","Jaylen Waddle","Pat Bryant"],"Evan Engram"],
+DET:["Jared Goff","Jahmyr Gibbs",["Isaac TeSlaa","Jameson Williams","Amon-Ra St. Brown"],"Sam LaPorta"],
+GB:["Jordan Love","MarShawn Lloyd",["Christian Watson","Matthew Golden","Skyy Moore"],"Tucker Kraft"],
+HOU:["C.J. Stroud","David Montgomery",["Nico Collins","Kayshon Boutte","Xavier Hutchinson"],"Dalton Schultz"],
+IND:["Daniel Jones","Jonathan Taylor",["Laquon Treadwell","Keenan Allen","Josh Downs"],"Tyler Warren"],
+JAX:["Trevor Lawrence","Bhayshul Tuten",["Brian Thomas Jr.","Jakobi Meyers","Parker Washington"],"Brenton Strange"],
+LAC:["Justin Herbert","Omarion Hampton",["Quentin Johnston","Tre' Harris","Ladd McConkey"],"Charlie Kolar"],
+LAR:["Matthew Stafford","Kyren Williams",["Davante Adams","Puka Nacua","Konata Mumpfield"],"Colby Parkinson"],
+LV:["Kirk Cousins","Ashton Jeanty",["Jalen Nailor","Cody White","Tre Tucker"],"Brock Bowers"],
+MIA:["Malik Willis","Ollie Gordon II",["Chris Bell","Caleb Douglas","Malik Washington"],"Greg Dulcich"],
+MIN:["Kyler Murray","Aaron Jones Sr.",["Justin Jefferson","Jordan Addison","Jauan Jennings"],"T.J. Hockenson"],
+NE:["Drake Maye","TreVeyon Henderson",["Romeo Doubs","Mack Hollins","DeMario Douglas"],"Hunter Henry"],
+NO:["Tyler Shough","Alvin Kamara",["Chris Olave","Bryce Lance","Devaughn Vele"],"Juwan Johnson"],
+NYG:["Jameis Winston","Cam Skattebo",["Malik Nabers","Malachi Fields","Darnell Mooney"],"Isaiah Likely"],
+NYJ:["Geno Smith","Breece Hall",["Adonai Mitchell","Garrett Wilson","Isaiah Williams"],"Mason Taylor"],
+PHI:["Jalen Hurts","Saquon Barkley",["Dontayvion Wicks","DeVonta Smith","Makai Lemon"],"Dallas Goedert"],
+PIT:["Aaron Rodgers","Jaylen Warren",["DK Metcalf","Michael Pittman Jr.","Roman Wilson"],"Pat Freiermuth"],
+SEA:["Sam Darnold","Emanuel Wilson",["Jaxon Smith-Njigba","Rashid Shaheed","Cooper Kupp"],"AJ Barner"],
+SF:["Brock Purdy","Christian McCaffrey",["Mike Evans","Jacob Cowing","Deebo Samuel Sr."],"George Kittle"],
+TB:["Jalon Daniels","Bucky Irving",["Ted Hurst III","Emeka Egbuka","Chris Godwin Jr."],"Cade Otton"],
+TEN:["Cam Ward","Tony Pollard",["Elic Ayomanor","Carnell Tate","Wan'Dale Robinson"],"Gunnar Helm"],
+WAS:["Jayden Daniels","Jacory Croskey-Merritt",["Terry McLaurin","Dyami Brown","Stefon Diggs"],"Chig Okonkwo"]};
+
+// injury status for listed starters: [status, injury]  Q=Questionable D=Doubtful O=Out
+const INJ={"Jeremiyah Love":["Q","Ankle"],"Zay Flowers":["Q","Hamstring"],"Chris Moore":["Q","Ankle"],"Lamar Jackson":["Q","Ankle"],
+"DJ Moore":["Q","Shoulder"],"D'Andre Swift":["Q","Hip"],"Tee Higgins":["Q","Groin"],"Ja'Marr Chase":["Q","Concussion"],"Pat Bryant":["D","Ankle"],
+"Keenan Allen":["Q","Groin"],"Quentin Johnston":["Q","Chest"],"Charlie Kolar":["Q","Forearm"],"Ladd McConkey":["Q","Foot"],
+"Colby Parkinson":["Q","Shoulder"],"Konata Mumpfield":["Q","Shoulder"],"Cody White":["Q","Ankle"],"Brock Bowers":["Q","Knee"],"Jalen Nailor":["Q","Concussion"],
+"Chris Bell":["Q","Knee"],"Caleb Douglas":["Q","Ankle"],"Jordan Addison":["Q","Hamstring"],"Justin Jefferson":["Q","Ankle"],"Mack Hollins":["Q","Calf"],
+"Alvin Kamara":["Q","Back"],"Tyler Shough":["Q","Hand"],"Breece Hall":["D","Quadriceps"],"Adonai Mitchell":["D","Finger"],
+"Saquon Barkley":["Q","Hamstring"],"DeVonta Smith":["Q","Hamstring"],"Dallas Goedert":["Q","Knee"],"Michael Pittman Jr.":["Q","Foot"],
+"Mike Evans":["Q","Ribs"],"Tony Pollard":["Q","Foot"],"Jacory Croskey-Merritt":["Q","Groin"],"Stefon Diggs":["Q","Hamstring"],
+"Terry McLaurin":["Q","Hamstring"],"Chig Okonkwo":["Q","Hamstring"]};
+// backups starting in place of a player ruled out
+const FILLIN={"Jalon Daniels":"Starting for Baker Mayfield (thumb, out)","Tyson Bagent":"Starting for Caleb Williams (hamstring, out)"};
+// forecast by home team: [type, text, impact]  impact: 0 none, 1 watch, 2 likely factor
+const WX={DAL:["Roof","Retractable roof, likely closed",0],JAX:["Outdoor","London · 57°F, cloudy, light breeze",0],GB:["Outdoor","73°F, moderate diagonal wind",1],
+MIA:["Outdoor","88°F, humid, 21% storms",1],NE:["Outdoor","66°F, partly cloudy",0],NO:["Dome","Indoors",0],NYJ:["Outdoor","66°F, 42% rain",1],
+PIT:["Outdoor","63°F, 85% rain",2],TEN:["Outdoor","68°F, 46% showers and storms",1],WAS:["Outdoor","65°F, 80% rain",2],LAC:["Dome","Indoors",0],
+ARI:["Roof","Retractable roof, likely closed",0],SEA:["Outdoor","57°F, clear",0],ATL:["Dome","Indoors",0],LAR:["Dome","Indoors",0]};
+
+// defensive injuries with a Week 5 game status: [name, pos, status, injury]. Secondary = CB/S/DB, front = DL/LB
+const DINJ={
+ARI:[["Dadrion Taylor-Demerson","S","Q","Back"],["Andrew Wingard","S","Q","Knee"]],
+ATL:[["Yasir Abdullah","LB","Q","Hamstring"],["Cameron Thomas","DE","Q","Shoulder"],["Za'Darius Smith","DE","Q","Concussion"],["Troy Andersen","LB","Q","Knee"],["Kevin King","CB","Q","Undisclosed"],["Malik Verdon","LB","Q","Undisclosed"]],
+BAL:[["Kyle Hamilton","S","Q","Groin"],["Trey Hendrickson","LB","Q","Finger"],["Marlon Humphrey","CB","Q","Calf"],["Reid Williford","LB","Q","Undisclosed"]],
+BUF:[["T.J. Sanders","DT","Q","Appendix"],["Christian Benford","CB","Q","Toe"],["Ed Oliver","DT","Q","Knee"],["Te'Cory Couch","DB","Q","Hamstring"],["Dee Alford","CB","Q","Ankle"],["Jordan Poyer","S","Q","Hamstring"],["Jordan Phillips","DT","Q","Ankle"],["Demetrius Flannigan-Fowles","LB","Q","Undisclosed"]],
+CHI:[["Anthony Johnson Jr.","S","O","Undisclosed"],["Keyshaun Elliott","LB","Q","Quadriceps"],["Marlen Sewell","S","Q","Undisclosed"],["Dontae Manning","CB","Q","Undisclosed"],["Ty Summers","LB","Q","Foot"],["Gervarrius Owens","S","Q","Undisclosed"],["KC Eziomume","DB","Q","Undisclosed"]],
+CIN:[["Dexter Lawrence","DT","Q","Wrist"],["Jordan Battle","S","Q","Hamstring"],["Barrett Carter","LB","Q","Ankle"],["Bryan Cook","S","Q","Ankle"],["Swayze Bozeman","LB","Q","Groin"],["Kyle Dugger","S","Q","Quadriceps"]],
+CLE:[["M. Graham","DT","D","Knee (MCL)"],["T. Bell","DT","Q","Eye"],["T. Herring","S","Q","Undisclosed"],["D. Jones","CB","Q","Knee"]],
+DAL:[["DeMarvion Overshown","LB","O","Hamstring"],["Decobie Durant","CB","O","Hamstring"]],
+DEN:[["Patrick Surtain II","CB","D","Ankle"],["D. Tillman","LB","Q","Hamstring"],["R. Moss","CB","Q","Ribs"]],
+DET:[["Rock Ya-Sin","CB","D","Hamstring"],["D.J. Wonnum","DE","Q","Back"],["Tyleik Williams","DT","Q","Foot"],["Zach Cunningham","LB","Q","Hamstring"],["Loren Strickland","S","Q","Undisclosed"],["Morice Norris Jr.","S","Q","Concussion"],["De'Shawn Rucker","CB","Q","Ankle"],["Aidan Keanaaina","DT","Q","Undisclosed"],["Divaad Wilson","CB","Q","Undisclosed"],["Emmanuel Moseley","DB","Q","Illness"],["Dicaprio Bootle","CB","Q","Undisclosed"]],
+GB:[["D. Wyatt","DT","Q","Ankle"],["L. Van Ness","DE","Q","Shoulder"],["A. Campbell","DT","Q","Ankle"],["M. Jones","DB","Q","Undisclosed"],["K. Randolph Jr.","DT","Q","Undisclosed"],["T. Dean III","S","Q","Undisclosed"],["I. Dunn","CB","Q","Undisclosed"]],
+HOU:[["Jadeveon Clowney","DE","Q","Knee"],["Logan Hall","DE","Q","Knee"],["Will Anderson Jr.","DE","Q","Ankle"],["Jamal Hill","LB","Q","Knee"],["Azeez Al-Shaair","LB","Q","Groin"]],
+IND:[["Arden Key","DE","O","Hamstring"],["Akeem Davis-Gaither","LB","Q","Knee"],["Jaylon Carlies","LB","Q","Ribs"]],
+JAX:[["Christian Braswell","CB","Q","Knee"],["Montaric Brown","CB","Q","Hamstring"],["Eric Murray","S","Q","Concussion"],["Keith Taylor","CB","Q","Undisclosed"],["Devon Marshall","DB","Q","Undisclosed"]],
+LAC:[["Cam Hart","CB","Q","Knee"],["Dalvin Tomlinson","DE","Q","Hamstring"],["Derwin James","S","Q","Hamstring"],["Donte Jackson","CB","Q","Hamstring"],["Kyle Kennard","LB","Q","Undisclosed"]],
+LAR:[["Aaron Donald","DE","Q","Back"],["Jaylen Watson","CB","Q","Shoulder"]],
+LV:[["Foley Fatukasi","DT","Q","Shoulder"]],
+MIA:[["Reese Taylor","DB","O","Quadriceps"],["Julius Brents","CB","Q","Heel"],["Robert Beal Jr.","DE","Q","Hamstring"],["Dante Trader Jr.","S","Q","Knee"],["Jackson Woodard","LB","Q","Ankle"]],
+MIN:[["Tyreek Chappell","CB","Q","Undisclosed"],["Charles Demmings","CB","Q","Hamstring"],["Taki Taimani","DL","Q","Undisclosed"],["Jaylon Hutchings","DE","Q","Undisclosed"],["Jeff Okudah","CB","Q","Concussion"]],
+NE:[["Christian Gonzalez","CB","Q","Shoulder"],["Carlton Davis III","CB","Q","Neck"],["Christian Barmore","DT","Q","Shoulder"],["Christian Elliss","LB","Q","Chest"],["Karon Prunty","CB","Q","Hamstring"],["Craig Woodson","S","Q","Shoulder"],["Dre'Mont Jones","LB","Q","Shoulder"],["Channing Canada","CB","Q","Hamstring"],["Charles Woods","CB","Q","Shoulder"]],
+NO:[["Julian Blackmon","S","Q","Shoulder"],["Carl Granderson","DE","Q","Ankle"],["Anfernee Jennings","LB","Q","Knee"],["Kaden Elliss","LB","Q","Calf"],["Dalys Beanum","CB","Q","Undisclosed"],["Keeshawn Silver","DT","Q","Undisclosed"]],
+NYG:[["C. Golston","DE","Q","Neck"],["J. Pinnock","S","Q","Concussion"],["D.J. James","CB","Q","Undisclosed"],["S. Roberts","DT","Q","Undisclosed"]],
+NYJ:[["Francisco Mauigoa","LB","D","Quadriceps"],["Kingsley Enagbare","LB","Q","Knee"],["Jarvis Brownlee Jr.","DB","Q","Concussion"],["Christopher Smith","S","Q","Undisclosed"]],
+PHI:[["Quinyon Mitchell","CB","Q","Knee"],["Jihaad Campbell","LB","Q","Knee"],["Zack Baun","LB","Q","Concussion"],["Marcus Epps","S","Q","Groin"],["Jonathan Greenard","LB","Q","Ankle"]],
+PIT:[["Jamel Dean","CB","D","Ankle"],["Jalen Ramsey","CB","Q","Wrist"]],
+SEA:[["T. Knight","LB","Q","Ankle"],["N. Pritchett","CB","Q","Ankle"],["L. Williams","DT","Q","Ankle"],["C. Surratt","LB","Q","Calf"],["A. Smith","LB","Q","Undisclosed"],["P. Echols","LB","Q","Undisclosed"],["J. Hankins","DT","Q","Back"],["J. Vaughn","LB","Q","Undisclosed"],["T. Broden","CB","Q","Undisclosed"],["S. Jean-Charles","CB","Q","Undisclosed"],["J. Weston","LB","Q","Undisclosed"]],
+SF:[["Marques Sigle","S","O","Ankle"],["Nick Bosa","DE","D","Calf"],["James Thompson Jr.","DT","D","Ankle"],["Upton Stout","CB","Q","Shoulder"]],
+TB:[["SirVocea Dennis","LB","O","Ankle"],["Benjamin Morrison","CB","O","Quadriceps"],["Antoine Winfield Jr.","S","O","Ribs"]],
+TEN:[["John Franklin-Myers","DE","Q","Back"],["Jeffery Simmons","DT","Q","Back"],["Amani Hooker","S","Q","Concussion"],["Marcus Harris","CB","Q","Knee"],["Kevin Winston Jr.","S","Q","Shoulder"]],
+WAS:[["Sonny Styles","LB","Q","Groin"],["Frankie Luvu","LB","Q","Groin"],["Percy Butler","S","Q","Hamstring"],["Tyler Owens","DB","Q","Hamstring"],["Charles Omenihu","DE","Q","Groin"],["Marvin Jones Jr.","LB","Q","Undisclosed"]]};
+const SECONDARY=new Set(["CB","S","DB"]);
+const STAT={Q:"Questionable",D:"Doubtful",O:"Out"};
+function dinjSplit(team){const l=DINJ[team]||[];return{sec:l.filter(x=>SECONDARY.has(x[1])),front:l.filter(x=>!SECONDARY.has(x[1]))}}
+function dinjCount(list){const c={O:0,D:0,Q:0};list.forEach(x=>c[x[2]]++);return c}
+function dinjSummary(list){const c=dinjCount(list);return [c.O&&c.O+" out",c.D&&c.D+" doubtful",c.Q&&c.Q+" questionable"].filter(Boolean).join(", ")||"none listed"}
+function dinjBlock(team){
+  const {sec,front}=dinjSplit(team);
+  const wrap=document.createElement("div");wrap.className="dinj";const box=document.createElement("details");wrap.append(box);
+  const all=[...sec,...front];
+  const key=all.filter(x=>x[2]!=="Q");
+  const sum=document.createElement("summary");
+  sum.innerHTML=`<b>${team} defense injuries</b> <span>Pass D: ${dinjSummary(sec)} · Run D: ${dinjSummary(front)}</span>`;
+  box.append(sum);
+  if(key.length){const k=document.createElement("p");k.className="dinj-key";k.textContent="Missing or doubtful: "+key.map(x=>`${x[1]} ${x[0]} (${STAT[x[2]]}, ${x[3]})`).join("; ");wrap.prepend(k)}
+  const ul=document.createElement("ul");
+  for(const [label,l] of [["Secondary (pass D)",sec],["Front seven (run D)",front]]){
+    if(!l.length) continue;
+    const li=document.createElement("li");li.innerHTML=`<i>${label}:</i> `;
+    li.append(l.map(x=>`${x[1]} ${x[0]} — ${STAT[x[2]]} (${x[3]})`).join("; "));ul.append(li);
+  }
+  if(!all.length){const li=document.createElement("li");li.textContent="No defensive players with a game status.";ul.append(li)}
+  box.append(ul);return wrap;
+}
+
+/* ---------- derived defense numbers and ranks ---------- */
+const D={};
+for(const [t,a] of Object.entries(DEF)){
+  const [ra,ry,rtd,pa,pc,py,ptd,int,sk]=a;
+  D[t]={team:t,ra,ry,rtd,pa,pc,py,ptd,int,sk,
+    rypg:ry/GP, ypc:ry/ra, pypg:py/GP, ypa:py/pa, cmp:100*pc/pa};
+}
+function rankBy(key){ // 1 = fewest allowed (toughest), 32 = most (softest)
+  const arr=Object.values(D).sort((x,y)=>x[key]-y[key]);
+  arr.forEach((d,i)=>d["r_"+key]=i+1);
+}
+["rypg","ypc","pypg","ypa"].forEach(rankBy);
+
+let state={view:"games",pos:"ALL",metric:"ypg",q:""};
+try{const s=JSON.parse(localStorage.getItem("smb-state")||"{}");Object.assign(state,s)}catch(e){}
+function save(){try{localStorage.setItem("smb-state",JSON.stringify({view:state.view,pos:state.pos,metric:state.metric}))}catch(e){}}
+
+const tz="America/Denver";
+const fmtKick=iso=>new Date(iso).toLocaleString("en-US",{timeZone:tz,weekday:"short",hour:"numeric",minute:"2-digit"})+" MT";
+
+function opp(team){for(const g of GAMES){if(g[0]===team)return{opp:g[1],home:false,g};if(g[1]===team)return{opp:g[0],home:true,g}}}
+function matchup(pos,oppTeam){
+  const d=D[oppTeam]; const run=pos==="RB";
+  if(state.metric==="ypg") return run?{rank:d.r_rypg,val:d.rypg.toFixed(0),unit:"rush yds/g",side:"Run D"}:{rank:d.r_pypg,val:d.pypg.toFixed(0),unit:"pass yds/g",side:"Pass D"};
+  return run?{rank:d.r_ypc,val:d.ypc.toFixed(1),unit:"YPC",side:"Run D"}:{rank:d.r_ypa,val:d.ypa.toFixed(1),unit:"Y/A",side:"Pass D"};
+}
+const tier=r=>r>=23?"s":r<=10?"t":"m";
+const ord=n=>n+(["th","st","nd","rd"][(n%100-20)%10]||["th","st","nd","rd"][n%100]||"th");
+
+function players(){
+  const out=[];
+  for(const [t,s] of Object.entries(STARTERS)){
+    const o=opp(t); if(!o) continue;
+    const list=[["QB",s[0]],["RB",s[1]],...s[2].map(n=>["WR",n]),["TE",s[3]]];
+    for(const [pos,name] of list){const m=matchup(pos,o.opp);const i=INJ[name],h=o.g[1],w=WX[h];out.push({pos,name,team:t,opp:o.opp,home:o.home,kick:o.g[2],status:i?{Q:"Questionable",D:"Doubtful",O:"Out"}[i[0]]+" ("+i[1]+")":(FILLIN[name]?"Fill-in starter":""),wx:w?w[1]:"",...m})}
+  }
+  return out;
+}
+function passes(p){
+  if(state.pos!=="ALL"&&p.pos!==state.pos) return false;
+  const q=state.q.trim().toLowerCase();
+  if(!q) return true;
+  return (p.name+" "+p.team+" "+TEAMS[p.team]+" "+p.opp+" "+TEAMS[p.opp]).toLowerCase().includes(q);
+}
+function chip(p){
+  const el=document.createElement("span");el.className="chip "+tier(p.rank);
+  el.innerHTML=`${ord(p.rank)} <span class="sm">· ${p.val} ${p.unit}</span>`;
+  el.title=`${TEAMS[p.opp]} ${p.side}: ${p.val} ${p.unit}, ranked ${ord(p.rank)} of 32 (32 = most allowed)`;
+  const u=dinjSplit(p.opp)[p.pos==="RB"?"front":"sec"].filter(x=>x[2]!=="Q");
+  if(u.length){const h=document.createElement("span");h.className="hurt";h.textContent="+";el.append(h);el.title+=`. Missing or doubtful in that unit: ${u.map(x=>x[1]+" "+x[0]).join(", ")}`}
+  return el;
+}
+
+function nameEl(p){
+  const nm=document.createElement("span");nm.className="name";nm.textContent=p.name;
+  const i=INJ[p.name];
+  if(i){const t=document.createElement("span");t.className="inj "+i[0];t.textContent=i[0];t.title={Q:"Questionable",D:"Doubtful",O:"Out"}[i[0]]+" · "+i[1];nm.append(t)}
+  if(FILLIN[p.name]){const f=document.createElement("span");f.className="fill";f.textContent=FILLIN[p.name];nm.append(f)}
+  return nm;
+}
+function renderGames(all){
+  const box=document.getElementById("games");box.textContent="";
+  let shown=0;
+  for(const [a,h,iso,note] of GAMES){
+    const sides=[a,h].map(t=>({t,ps:all.filter(p=>p.team===t&&passes(p))}));
+    if(sides.every(s=>!s.ps.length)) continue;
+    shown++;
+    const card=document.createElement("article");card.className="game";
+    const w=WX[h]||["","Forecast unavailable",0];
+    card.innerHTML=`<div class="game-h"><b>${a} @ ${h}</b><small>${fmtKick(iso)}${note?" · "+note:""}</small></div><div class="wx w${w[2]}"><b>${w[2]===2?"Weather alert":w[2]===1?"Watch":w[0]}</b><span>${w[1]}</span></div>`;
+    for(const s of sides){
+      if(!s.ps.length) continue;
+      const o=opp(s.t).opp,d=D[o];
+      const side=document.createElement("div");side.className="side";
+      side.innerHTML=`<div class="side-h"><span>${TEAMS[s.t]} offense</span><span>vs ${o}: run ${ord(state.metric==="ypg"?d.r_rypg:d.r_ypc)} · pass ${ord(state.metric==="ypg"?d.r_pypg:d.r_ypa)}</span></div>`;
+      side.append(dinjBlock(o));
+      for(const p of s.ps){
+        const row=document.createElement("div");row.className="row";
+        const pos=document.createElement("span");pos.className="pos";pos.textContent=p.pos;
+        const nm=nameEl(p);
+        row.append(pos,nm,chip(p));side.append(row);
+      }
+      card.append(side);
+    }
+    box.append(card);
+  }
+  if(!shown) box.innerHTML='<p class="empty">No starters match that search.</p>';
+}
+
+let listSort={key:"rank",dir:-1};
+function renderList(all){
+  const t=document.getElementById("plist");
+  const cols=[["name","Player"],["pos","Pos"],["team","Team"],["opp","Opponent"],["side","Faces"],["val","Allowed",1],["rank","Rank",1],["status","Status"],["wx","Weather"],["kick","Kickoff"]];
+  t.tHead.innerHTML="<tr>"+cols.map(([k,l,n])=>`<th class="${n?"num":""}"><button data-k="${k}" ${listSort.key===k?`data-dir="${listSort.dir>0?"▲":"▼"}"`:""}>${l}</button></th>`).join("")+"</tr>";
+  const rows=all.filter(passes).sort((x,y)=>{const k=listSort.key;let a=x[k],b=y[k];if(k==="val"){a=+a;b=+b}return (a>b?1:a<b?-1:0)*listSort.dir||x.name.localeCompare(y.name)});
+  const tb=t.tBodies[0];tb.textContent="";
+  if(!rows.length){tb.innerHTML='<tr><td colspan="10" class="empty">No starters match that search.</td></tr>';return}
+  for(const p of rows){
+    const tr=document.createElement("tr");
+    const cells=["NAME",p.pos,p.team,(p.home?"vs ":"@ ")+p.opp,p.side,`${p.val} ${p.unit}`,null,p.status||"Active",p.wx,fmtKick(p.kick)];
+    cells.forEach((c,i)=>{const td=document.createElement("td");if(i===5||i===6)td.className="num";if(c==="NAME"){const n=nameEl(p);n.className="";td.append(n)}else if(c===null){const s=document.createElement("span");s.className="chip "+tier(p.rank);s.textContent=ord(p.rank);td.append(s)}else td.textContent=c;tr.append(td)});
+    tb.append(tr);
+  }
+  t.tHead.querySelectorAll("button").forEach(b=>b.onclick=()=>{const k=b.dataset.k;listSort=listSort.key===k?{key:k,dir:-listSort.dir}:{key:k,dir:(k==="rank"||k==="val")?-1:1};renderList(players())});
+}
+
+let defSort={key:"r_pypg",dir:-1};
+function renderDef(){
+  const t=document.getElementById("dtable");
+  const cols=[["team","Team"],["rypg","Rush yds/g",1],["ypc","YPC",1],["rtd","Rush TD",1],["r_rypg","Run rank",1],["pypg","Pass yds/g",1],["ypa","Y/A",1],["cmp","Cmp %",1],["ptd","Pass TD",1],["int","INT",1],["sk","Sacks",1],["r_pypg","Pass rank",1],["inj","Injuries"],["week","Week 5"]];
+  t.tHead.innerHTML="<tr>"+cols.map(([k,l,n])=>`<th class="${n?"num":""}"><button data-k="${k}" ${defSort.key===k?`data-dir="${defSort.dir>0?"▲":"▼"}"`:""}>${l}</button></th>`).join("")+"</tr>";
+  const rows=Object.values(D).map(d=>{const o=opp(d.team);const c=dinjCount(DINJ[d.team]||[]);return {...d,inj:o?([c.O&&c.O+" O",c.D&&c.D+" D",c.Q&&c.Q+" Q"].filter(Boolean).join(" · ")||"—"):"Bye",week:o?(o.home?"vs ":"faces ")+o.opp:"Bye"}}).sort((x,y)=>{const k=defSort.key;const a=x[k],b=y[k];return (a>b?1:a<b?-1:0)*defSort.dir});
+  const tb=t.tBodies[0];tb.textContent="";
+  for(const d of rows){
+    const tr=document.createElement("tr");
+    const vals=[`${d.team} ${TEAMS[d.team]}`,d.rypg.toFixed(1),d.ypc.toFixed(1),d.rtd,"R",d.pypg.toFixed(1),d.ypa.toFixed(1),d.cmp.toFixed(1),d.ptd,d.int,d.sk,"P",d.inj,o2(d)];
+    vals.forEach((v,i)=>{const td=document.createElement("td");if(i>0&&i<12)td.className="num";
+      if(v==="R"||v==="P"){const r=v==="R"?d.r_rypg:d.r_pypg;const s=document.createElement("span");s.className="chip "+tier(r);s.textContent=ord(r);td.append(s)}else td.textContent=v;tr.append(td)});
+    tb.append(tr);
+  }
+  function o2(d){const o=opp(d.team);if(!o)return "Bye";return "vs "+TEAMS[o.opp]+" offense"}
+  t.tHead.querySelectorAll("button").forEach(b=>b.onclick=()=>{const k=b.dataset.k;defSort=defSort.key===k?{key:k,dir:-defSort.dir}:{key:k,dir:k==="team"||k==="week"?1:-1};renderDef()});
+}
+
+function render(){
+  const all=players();
+  document.getElementById("gamesView").hidden=state.view!=="games";
+  document.getElementById("listView").hidden=state.view!=="list";
+  document.querySelectorAll("[data-view]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.view===state.view));
+  document.querySelectorAll("[data-pos]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.pos===state.pos));
+  document.getElementById("metric").value=state.metric;
+  if(state.view==="games")renderGames(all);else renderList(all);
+}
+document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{state.view=b.dataset.view;save();render()});
+document.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{state.pos=b.dataset.pos;save();render()});
+document.getElementById("metric").onchange=e=>{state.metric=e.target.value;save();render()};
+document.getElementById("q").oninput=e=>{state.q=e.target.value;render()};
+render();renderDef();
+
+/* ---------- refresh on open ---------- */
+const UPDATED_AT="2026-10-08T19:40:00Z";
+const REFRESH_TASK="trig_01JxhzGDigNDKQmhepft2Muh";
+const SERVER="Claude Code Remote";
+const COOLDOWN_MS=2*60*60*1000;
+const freshEl=document.getElementById("fresh"),freshText=document.getElementById("freshText"),btn=document.getElementById("refreshBtn");
+function ago(ms){const m=Math.round(ms/60000);if(m<1)return"just now";if(m<60)return m+" min ago";const h=Math.round(m/60);if(h<24)return h+(h===1?" hour":" hours")+" ago";const d=Math.round(h/24);return d+(d===1?" day":" days")+" ago"}
+const age=()=>Date.now()-Date.parse(UPDATED_AT);
+function lastFired(){try{return +localStorage.getItem("smb-fired")||0}catch(e){return 0}}
+function markFired(){try{localStorage.setItem("smb-fired",String(Date.now()))}catch(e){}}
+function showIdle(extra){freshEl.classList.remove("busy");freshText.textContent=`Injuries and weather updated ${ago(age())}.`+(extra?" "+extra:"")}
+function showBusy(){freshEl.classList.add("busy");freshText.textContent=`Refreshing injuries and weather (last update ${ago(age())}). This page reloads on its own when the new data is published, usually within 10–15 minutes.`;btn.hidden=true}
+let mcpNs=null;
+async function fire(){
+  showBusy();
+  try{
+    await mcpNs.callTool(SERVER,"fire_trigger",{trigger_id:REFRESH_TASK},{cache:false});
+    markFired();
+  }catch(err){
+    freshEl.classList.remove("busy");
+    const c=err&&err.code;
+    if(c==="server_not_connected"||c==="needs_reauth"){showIdle(`To refresh, ${c==="needs_reauth"?"reconnect":"add"} the ${SERVER} connector in claude.ai Settings → Connectors.`);btn.hidden=true}
+    else if(c==="not_in_manifest"){showIdle("Auto-refresh is turned off for this page. Allow it in the page's permissions to turn it back on.");btn.hidden=true}
+    else if(c==="approval_required"||c==="cancelled"){showIdle("Refreshing needs your OK.");btn.hidden=false}
+    else if(c==="tool_error"){showIdle("The refresh couldn't start: "+(err.message||"the scheduled task refused it")+".");btn.hidden=false}
+    else {showIdle("The refresh couldn't start right now.");btn.hidden=false}
+  }
+}
+btn.onclick=()=>{if(mcpNs)fire()};
+showIdle();
+(async()=>{
+  try{mcpNs=await window.claude?.use?.("mcp")}catch(e){mcpNs=null}
+  if(!mcpNs){showIdle();return}
+  const recentlyFired=Date.now()-lastFired()<COOLDOWN_MS;
+  if(age()>COOLDOWN_MS&&!recentlyFired){fire()}
+  else if(recentlyFired&&age()>Date.now()-lastFired()){showBusy()}
+  else{showIdle();btn.hidden=false}
+})();
+</script>
+
+</body>
+</html>
