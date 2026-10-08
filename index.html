@@ -100,6 +100,8 @@ footer a{color:var(--accent)}
 .dinj-key{margin:0 0 4px;color:var(--tough);font-weight:600;font-size:13px}
 .dinj ul{margin:4px 0 2px;padding-left:18px} .dinj li{margin:2px 0} .dinj i{font-style:normal;font-weight:600;color:var(--ink)}
 .chip .hurt{margin-left:4px;font-weight:700;color:var(--tough)}
+.ol-none{margin:0;font-size:13px;color:var(--muted)}
+.olinj{margin-bottom:2px}
 .odds{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;padding:6px 14px;font-size:13px;color:var(--muted);border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
 .odds b{font-weight:600;color:var(--ink)}
 .imp{font-variant-numeric:tabular-nums;font-weight:700;border-radius:6px;padding:1px 7px;font-size:12px;letter-spacing:.02em;text-transform:none}
@@ -185,7 +187,7 @@ footer a{color:var(--accent)}
 </main>
 
 <footer class="wrap">
-  Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for offense and defense: CBS Sports practice-week report (Q questionable, D doubtful, O out); final statuses come Friday and inactives 90 minutes before kickoff. Weather: RotoWire forecasts. Lines: CBS Sports odds (spreads and totals move during the week). Defense: NFL.com team defense stats, 2026 regular season. Schedule: CBS Sports. Times are Mountain.
+  Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for skill players, offensive lines and defenses: CBS Sports practice-week report (Q questionable, D doubtful, O out); final statuses come Friday and inactives 90 minutes before kickoff. Weather: RotoWire forecasts. Lines: CBS Sports odds (spreads and totals move during the week). Defense: NFL.com team defense stats, 2026 regular season. Schedule: CBS Sports. Times are Mountain.
 </footer>
 
 <script>
@@ -207,7 +209,7 @@ function dinjBlock(team){
   const sum=document.createElement("summary");
   sum.innerHTML=`<b>${team} defense injuries</b> <span>Pass D: ${dinjSummary(sec)} · Run D: ${dinjSummary(front)}</span>`;
   box.append(sum);
-  if(key.length){const k=document.createElement("p");k.className="dinj-key";k.textContent="Missing or doubtful: "+key.map(x=>`${x[1]} ${x[0]} (${STAT[x[2]]}, ${x[3]})`).join("; ");wrap.prepend(k)}
+  if(key.length){const k=document.createElement("p");k.className="dinj-key";k.textContent=`${team} defense missing or doubtful: `+key.map(x=>`${x[1]} ${x[0]} (${STAT[x[2]]}, ${x[3]})`).join("; ");wrap.prepend(k)}
   const ul=document.createElement("ul");
   for(const [label,l] of [["Secondary (pass D)",sec],["Front seven (run D)",front]]){
     if(!l.length) continue;
@@ -229,7 +231,7 @@ function lineText(a,h){const o=ODDS[h];if(!o)return"";const fav=o[0]<0?h:a;retur
    passTD, INT, sacks], season totals through week defThrough; GP = games played, either one number for every team
    or {default: n, TEAM: n, ...} when some teams have had a bye; STARTERS team: [QB, RB, [WR, WR, WR], TE];
    INJ player: [Q/D/O, injury]; FILLIN backup: note; WX home team: [type, forecast, impact 0-2];
-   DINJ team: [[name, pos, Q/D/O, injury]]; ODDS home team: [home spread (negative = home favored), over/under].
+   DINJ team: [[name, pos, Q/D/O, injury]]; OLINJ team: offensive linemen, same shape as DINJ (optional); ODDS home team: [home spread (negative = home favored), over/under].
    backfill: true marks weeks 1-4, added after the fact: no lineups, injuries, weather or lines, kickoff is a date,
    GAMES note holds the final score, and yardsOnly means DEF has yards but no attempts (null), so ranks use yards per game. */
 const WEEKS={
@@ -411,6 +413,30 @@ SF:[["Marques Sigle","S","O","Ankle"],["Nick Bosa","DE","D","Calf"],["James Thom
 TB:[["SirVocea Dennis","LB","O","Ankle"],["Benjamin Morrison","CB","O","Quadriceps"],["Antoine Winfield Jr.","S","O","Ribs"]],
 TEN:[["John Franklin-Myers","DE","Q","Back"],["Jeffery Simmons","DT","Q","Back"],["Amani Hooker","S","Q","Concussion"],["Marcus Harris","CB","Q","Knee"],["Kevin Winston Jr.","S","Q","Shoulder"]],
 WAS:[["Sonny Styles","LB","Q","Groin"],["Frankie Luvu","LB","Q","Groin"],["Percy Butler","S","Q","Hamstring"],["Tyler Owens","DB","Q","Hamstring"],["Charles Omenihu","DE","Q","Groin"],["Marvin Jones Jr.","LB","Q","Undisclosed"]]},
+OLINJ:{
+ARI:[["Isaiah Adams","G","O","Ankle"]],
+ATL:[["Michael Jerrell","T","Q","Ankle"],["Jake Matthews","T","Q","Groin"],["Tyrone Wheatley Jr.","T","Q","Undisclosed"]],
+BAL:[["Andrew Vorhees","G","Q","Foot"],["Ronnie Stanley","T","Q","Toe"],["John Simpson","G","Q","Groin"]],
+CHI:[["Joe Thuney","G","Q","Pectoral"],["Darnell Wright","T","Q","Ankle"],["Jonah Jackson","G","Q","Ankle"],["Ricky Stromberg","OL","Q","Undisclosed"]],
+CIN:[["Dalton Risner","G","Q","Knee"]],
+CLE:[["Teven Jenkins","G","Q","Back"]],
+DAL:[["Drew Shelton","T","O","Hamstring"],["Tyler Smith","G","Q","Thumb"]],
+DET:[["Mason Miller","T","O","Undisclosed"],["Ben Bartch","T","Q","Foot"],["Michael Niese","G","Q","Leg"],["Jamarco Jones","T","Q","Achilles"]],
+GB:[["Anthony Belton","T","Q","Knee"],["Jager Burton","G","Q","Back"],["Jacob Monk","G","Q","Quadriceps"],["Aaron Banks","G","Q","Toe"]],
+HOU:[["Nathan Thomas","T","Q","Illness"]],
+IND:[["Tanor Bortolini","C","Q","Ankle"]],
+JAX:[["Cole Van Lanen","G","Q","Knee"],["Anton Harrison","T","Q","Elbow"]],
+LAC:[["Rashawn Slater","T","O","Ankle"],["Trevor Penning","T","Q","Concussion"],["Kayode Awosika","G","Q","Lower leg"]],
+LV:[["Spencer Burford","G","Q","Knee"],["Jackson Powers-Johnson","C","Q","Groin"],["Trey Zuhn III","G","Q","Knee"]],
+MIA:[["Austin Jackson","T","Q","Knee"]],
+MIN:[["Brian O'Neill","T","Q","Knee"],["Christian Darrisaw","T","Q","Concussion"],["Matt Nelson","T","Q","Undisclosed"]],
+NE:[["Morgan Moses","T","Q","Foot"]],
+NO:[["Barry Wesley","T","Q","Undisclosed"]],
+NYG:[["Andrew Thomas","T","Q","Groin"]],
+NYJ:[["Dylan Parham","G","D","Knee"]],
+PHI:[["Drew Kendall","C","Q","Knee"],["Cam Jurgens","G","Q","Concussion"],["Fred Johnson","T","Q","Knee"]],
+SEA:[["Beau Stephens","G","Q","Knee"],["Shane Lemieux","G","Q","Undisclosed"]],
+WAS:[["Nick Allegretti","G","Q","Hip"],["Samuel Cosmi","T","Q","Concussion"],["Tyler Cooper","G","Q","Undisclosed"]]},
 ODDS:{DAL:[-8.5,48.5],JAX:[-7.5,41.5],MIA:[6.5,42.5],NE:[-3.5,44.5],NO:[1.5,41.5],NYJ:[-1.5,39.5],PIT:[-2.5,44.5],TEN:[7.5,37.5],
 WAS:[-3.5,41.5],GB:[1.5,45.5],LAC:[3.5,41.5],ARI:[5.5,54.5],SEA:[-3,45.5],ATL:[-3,43.5],LAR:[-3,54.5]}},
 6:{status:"preview",dates:"Oct 15–19",updated:"",updatedAt:"",byes:["CIN","DET","MIA","MIN"],defThrough:4,
@@ -478,13 +504,13 @@ function currentWeek(){
   return ns[ns.length-1];
 }
 const CURRENT_WEEK=currentWeek();
-let WEEK,W,GP,DEF,GAMES,STARTERS,INJ,FILLIN,WX,DINJ,ODDS,D,IMP,impRank;
+let WEEK,W,GP,DEF,GAMES,STARTERS,INJ,FILLIN,WX,DINJ,OLINJ,ODDS,D,IMP,impRank;
 function rankBy(key){ // 1 = fewest allowed (toughest), 32 = most (softest)
   const arr=Object.values(D).sort((x,y)=>x[key]-y[key]);
   arr.forEach((d,i)=>d["r_"+key]=i+1);
 }
 function loadWeek(n){
-  WEEK=n;W=WEEKS[n];({GP,DEF,GAMES,STARTERS,INJ,FILLIN,WX,DINJ,ODDS}=W);
+  WEEK=n;W=WEEKS[n];({GP,DEF,GAMES,STARTERS,INJ,FILLIN,WX,DINJ,ODDS}=W);OLINJ=W.OLINJ||{};
   D={};
   for(const [t,a] of Object.entries(DEF)){
     const [ra,ry,rtd,pa,pc,py,ptd,int,sk]=a;
@@ -575,6 +601,19 @@ function teamCard(a,h,iso,note){
   return card;
 }
 const chipHtml=(r,txt)=>`<span class="chip ${tier(r)}">${ord(r)} <span class="sm">· ${txt}</span></span>`;
+// the offense's own line: who is out or doubtful up front, with questionable players behind a toggle
+function olBlock(team){
+  const l=OLINJ[team]||[];
+  const wrap=document.createElement("div");wrap.className="dinj olinj";
+  if(!l.length){const p=document.createElement("p");p.className="ol-none";p.textContent=`${team} O-line: no injuries listed`;wrap.append(p);return wrap}
+  const box=document.createElement("details");
+  const sum=document.createElement("summary");sum.innerHTML=`<b>${team} O-line injuries</b> <span>${dinjSummary(l)}</span>`;box.append(sum);
+  const ul=document.createElement("ul"),li=document.createElement("li");
+  li.textContent=l.map(x=>`${x[1]} ${x[0]} — ${STAT[x[2]]} (${x[3]})`).join("; ");ul.append(li);box.append(ul);wrap.append(box);
+  const key=l.filter(x=>x[2]!=="Q");
+  if(key.length){const k=document.createElement("p");k.className="dinj-key";k.textContent=`${team} line missing or doubtful: `+key.map(x=>`${x[1]} ${x[0]} (${STAT[x[2]]}, ${x[3]})`).join("; ");wrap.prepend(k)}
+  return wrap;
+}
 function renderGames(all){
   const box=document.getElementById("games");box.textContent="";
   let shown=0;
@@ -599,7 +638,7 @@ function renderGames(all){
       const o=opp(s.t).opp,d=D[o];
       const side=document.createElement("div");side.className="side";
       side.innerHTML=`<div class="side-h"><span>${TEAMS[s.t]} offense${IMP[s.t]!=null?` <span class="imp ${impTier(s.t)}" title="Implied team total from the spread and over/under; ranked ${ord(impRank[s.t])} of ${Object.keys(IMP).length} this week">${IMP[s.t].toFixed(1)} pts</span>`:""}</span><span>vs ${o}: ${rankLine(o)}</span></div>`;
-      if(W.status!=="preview")side.append(dinjBlock(o));
+      if(W.status!=="preview"){side.append(olBlock(s.t));side.append(dinjBlock(o))}
       for(const p of s.ps){
         const row=document.createElement("div");row.className="row";
         const pos=document.createElement("span");pos.className="pos";pos.textContent=p.pos;
