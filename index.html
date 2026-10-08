@@ -226,7 +226,8 @@ function lineText(a,h){const o=ODDS[h];if(!o)return"";const fav=o[0]<0?h:a;retur
    One entry per week. status: "live" = the week being played (injuries, weather and lines kept current),
    "final" = a finished week kept as it was, "preview" = next week's matchups before its Thursday rebuild.
    Each week: GAMES [away, home, kickoff UTC, note]; DEF team: [rushAtt, rushYds, rushTD, passAtt, passCmp, passYds,
-   passTD, INT, sacks], season totals through week defThrough over GP games; STARTERS team: [QB, RB, [WR, WR, WR], TE];
+   passTD, INT, sacks], season totals through week defThrough; GP = games played, either one number for every team
+   or {default: n, TEAM: n, ...} when some teams have had a bye; STARTERS team: [QB, RB, [WR, WR, WR], TE];
    INJ player: [Q/D/O, injury]; FILLIN backup: note; WX home team: [type, forecast, impact 0-2];
    DINJ team: [[name, pos, Q/D/O, injury]]; ODDS home team: [home spread (negative = home favored), over/under]. */
 const WEEKS={
@@ -401,7 +402,8 @@ function loadWeek(n){
   D={};
   for(const [t,a] of Object.entries(DEF)){
     const [ra,ry,rtd,pa,pc,py,ptd,int,sk]=a;
-    D[t]={team:t,ra,ry,rtd,pa,pc,py,ptd,int,sk,rypg:ry/GP,ypc:ry/ra,pypg:py/GP,ypa:py/pa,cmp:100*pc/pa};
+    const gp=typeof GP==="number"?GP:(GP[t]??GP.default);
+    D[t]={team:t,gp,ra,ry,rtd,pa,pc,py,ptd,int,sk,rypg:ry/gp,ypc:ry/ra,pypg:py/gp,ypa:py/pa,cmp:100*pc/pa};
   }
   ["rypg","ypc","pypg","ypa"].forEach(rankBy);
   // implied points: home = (total - home spread) / 2, away = (total + home spread) / 2
@@ -413,7 +415,7 @@ function loadWeek(n){
   const tag=st==="preview"?"Preview":st==="final"?"Final · as of "+W.updated:"Updated "+W.updated;
   document.getElementById("eyebrow").textContent=`NFL · 2026 Week ${n} · ${W.dates} · ${tag}`;
   document.getElementById("byes").textContent=W.byes.length?"On bye: "+W.byes.map(teamFull).join(", ")+".":"No teams on bye.";
-  document.getElementById("defNote").textContent=`Season totals through Week ${W.defThrough} (${W.GP} games each). Pass yards are gross passing yards allowed. Click a column to sort.`;
+  document.getElementById("defNote").textContent=`Season totals through Week ${W.defThrough} (${typeof W.GP==="number"?W.GP+" games each":"per-team games played"}). Pass yards are gross passing yards allowed. Click a column to sort.`;
   const note=document.getElementById("weekNote");
   note.hidden=st==="live";
   note.textContent=st==="preview"?`Week ${n} preview: matchups and defense ranks only. Injuries, weather and betting lines are added when this week's board is built Thursday morning.`:st==="final"?`Week ${n} is over. This is the board as it stood ${W.updated}.`:"";
