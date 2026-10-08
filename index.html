@@ -229,8 +229,94 @@ function lineText(a,h){const o=ODDS[h];if(!o)return"";const fav=o[0]<0?h:a;retur
    passTD, INT, sacks], season totals through week defThrough; GP = games played, either one number for every team
    or {default: n, TEAM: n, ...} when some teams have had a bye; STARTERS team: [QB, RB, [WR, WR, WR], TE];
    INJ player: [Q/D/O, injury]; FILLIN backup: note; WX home team: [type, forecast, impact 0-2];
-   DINJ team: [[name, pos, Q/D/O, injury]]; ODDS home team: [home spread (negative = home favored), over/under]. */
+   DINJ team: [[name, pos, Q/D/O, injury]]; ODDS home team: [home spread (negative = home favored), over/under].
+   backfill: true marks weeks 1-4, added after the fact: no lineups, injuries, weather or lines, kickoff is a date,
+   GAMES note holds the final score, and yardsOnly means DEF has yards but no attempts (null), so ranks use yards per game. */
 const WEEKS={
+1:{status:"final",backfill:true,dates:"Sep 9–14",updated:"",updatedAt:"",byes:[],defThrough:0,yardsOnly:true,
+GP:0,
+DEF:{},
+GAMES:[
+["NE", "SEA", "2026-09-09", "Final: NE 10, SEA 13"],
+["SF", "LAR", "2026-09-10", "Final: SF 27, LAR 7"],
+["ATL", "PIT", "2026-09-13", "Final: ATL 13, PIT 20"],
+["BAL", "IND", "2026-09-13", "Final: BAL 41, IND 23"],
+["BUF", "HOU", "2026-09-13", "Final: BUF 36, HOU 31"],
+["CHI", "CAR", "2026-09-13", "Final: CHI 59, CAR 37"],
+["CLE", "JAX", "2026-09-13", "Final: CLE 10, JAX 34"],
+["NO", "DET", "2026-09-13", "Final: NO 30, DET 31 (OT)"],
+["NYJ", "TEN", "2026-09-13", "Final: NYJ 23, TEN 10"],
+["TB", "CIN", "2026-09-13", "Final: TB 27, CIN 33"],
+["ARI", "LAC", "2026-09-13", "Final: ARI 26, LAC 14"],
+["GB", "MIN", "2026-09-13", "Final: GB 22, MIN 39"],
+["MIA", "LV", "2026-09-13", "Final: MIA 13, LV 27"],
+["WAS", "PHI", "2026-09-13", "Final: WAS 22, PHI 24"],
+["DAL", "NYG", "2026-09-13", "Final: DAL 20, NYG 28"],
+["DEN", "KC", "2026-09-14", "Final: DEN 10, KC 31"]],
+STARTERS:{},INJ:{},FILLIN:{},WX:{},DINJ:{},ODDS:{}},
+2:{status:"final",backfill:true,dates:"Sep 17–21",updated:"",updatedAt:"",byes:[],defThrough:1,yardsOnly:true,
+GP:1,
+DEF:{ARI:[null,81,null,null,null,187,null,null,null],ATL:[null,58,null,null,null,206,null,null,null],BAL:[null,102,null,null,null,149,null,null,null],BUF:[null,124,null,null,null,257,null,null,null],CAR:[null,291,null,null,null,261,null,null,null],CHI:[null,125,null,null,null,353,null,null,null],CIN:[null,89,null,null,null,193,null,null,null],CLE:[null,126,null,null,null,234,null,null,null],DAL:[null,165,null,null,null,229,null,null,null],DEN:[null,220,null,null,null,172,null,null,null],DET:[null,91,null,null,null,378,null,null,null],GB:[null,107,null,null,null,132,null,null,null],HOU:[null,86,null,null,null,323,null,null,null],IND:[null,202,null,null,null,304,null,null,null],JAX:[null,87,null,null,null,185,null,null,null],KC:[null,61,null,null,null,115,null,null,null],LAC:[null,116,null,null,null,277,null,null,null],LAR:[null,174,null,null,null,205,null,null,null],LV:[null,74,null,null,null,185,null,null,null],MIA:[null,130,null,null,null,160,null,null,null],MIN:[null,66,null,null,null,353,null,null,null],NE:[null,97,null,null,null,188,null,null,null],NO:[null,165,null,null,null,204,null,null,null],NYG:[null,69,null,null,null,175,null,null,null],NYJ:[null,68,null,null,null,127,null,null,null],PHI:[null,132,null,null,null,163,null,null,null],PIT:[null,120,null,null,null,118,null,null,null],SEA:[null,109,null,null,null,168,null,null,null],SF:[null,122,null,null,null,168,null,null,null],TB:[null,106,null,null,null,245,null,null,null],TEN:[null,152,null,null,null,215,null,null,null],WAS:[null,136,null,null,null,182,null,null,null]},
+GAMES:[
+["DET", "BUF", "2026-09-17", "Final: DET 31, BUF 41"],
+["CIN", "HOU", "2026-09-20", "Final: CIN 20, HOU 6"],
+["CAR", "ATL", "2026-09-20", "Final: CAR 34, ATL 3"],
+["CLE", "TB", "2026-09-20", "Final: CLE 23, TB 19"],
+["GB", "NYJ", "2026-09-20", "Final: GB 20, NYJ 17 (OT)"],
+["MIN", "CHI", "2026-09-20", "Final: MIN 9, CHI 3"],
+["NO", "BAL", "2026-09-20", "Final: NO 24, BAL 17"],
+["PHI", "TEN", "2026-09-20", "Final: PHI 24, TEN 20"],
+["PIT", "NE", "2026-09-20", "Final: PIT 3, NE 20"],
+["LV", "LAC", "2026-09-20", "Final: LV 26, LAC 14"],
+["JAX", "DEN", "2026-09-20", "Final: JAX 13, DEN 20"],
+["MIA", "SF", "2026-09-20", "Final: MIA 13, SF 35"],
+["SEA", "ARI", "2026-09-20", "Final: SEA 31, ARI 7"],
+["WAS", "DAL", "2026-09-20", "Final: WAS 20, DAL 37"],
+["IND", "KC", "2026-09-20", "Final: IND 30, KC 33 (OT)"],
+["NYG", "LAR", "2026-09-21", "Final: NYG 6, LAR 28"]],
+STARTERS:{},INJ:{},FILLIN:{},WX:{},DINJ:{},ODDS:{}},
+3:{status:"final",backfill:true,dates:"Sep 24–28",updated:"",updatedAt:"",byes:[],defThrough:2,yardsOnly:true,
+GP:2,
+DEF:{ARI:[null,243,null,null,null,406,null,null,null],ATL:[null,126,null,null,null,478,null,null,null],BAL:[null,167,null,null,null,382,null,null,null],BUF:[null,190,null,null,null,546,null,null,null],CAR:[null,448,null,null,null,390,null,null,null],CHI:[null,244,null,null,null,480,null,null,null],CIN:[null,149,null,null,null,507,null,null,null],CLE:[null,263,null,null,null,410,null,null,null],DAL:[null,347,null,null,null,436,null,null,null],DEN:[null,315,null,null,null,345,null,null,null],DET:[null,294,null,null,null,621,null,null,null],GB:[null,174,null,null,null,350,null,null,null],HOU:[null,171,null,null,null,505,null,null,null],IND:[null,354,null,null,null,675,null,null,null],JAX:[null,191,null,null,null,473,null,null,null],KC:[null,180,null,null,null,325,null,null,null],LAC:[null,173,null,null,null,525,null,null,null],LAR:[null,226,null,null,null,335,null,null,null],LV:[null,201,null,null,null,368,null,null,null],MIA:[null,225,null,null,null,447,null,null,null],MIN:[null,200,null,null,null,516,null,null,null],NE:[null,188,null,null,null,332,null,null,null],NO:[null,273,null,null,null,408,null,null,null],NYG:[null,232,null,null,null,493,null,null,null],NYJ:[null,131,null,null,null,263,null,null,null],PHI:[null,254,null,null,null,332,null,null,null],PIT:[null,256,null,null,null,309,null,null,null],SEA:[null,179,null,null,null,249,null,null,null],SF:[null,224,null,null,null,350,null,null,null],TB:[null,150,null,null,null,468,null,null,null],TEN:[null,241,null,null,null,467,null,null,null],WAS:[null,202,null,null,null,448,null,null,null]},
+GAMES:[
+["ATL", "GB", "2026-09-24", "Final: ATL 35, GB 14"],
+["CAR", "CLE", "2026-09-27", "Final: CAR 18, CLE 21"],
+["CIN", "PIT", "2026-09-27", "Final: CIN 27, PIT 30"],
+["HOU", "IND", "2026-09-27", "Final: HOU 17, IND 19"],
+["KC", "MIA", "2026-09-27", "Final: KC 24, MIA 10"],
+["LAC", "BUF", "2026-09-27", "Final: LAC 16, BUF 24"],
+["NE", "JAX", "2026-09-27", "Final: NE 6, JAX 35"],
+["NYJ", "DET", "2026-09-27", "Final: NYJ 24, DET 31"],
+["SEA", "WAS", "2026-09-27", "Final: SEA 31, WAS 33"],
+["TEN", "NYG", "2026-09-27", "Final: TEN 7, NYG 12"],
+["ARI", "SF", "2026-09-27", "Final: ARI 30, SF 36"],
+["MIN", "TB", "2026-09-27", "Final: MIN 23, TB 16"],
+["BAL", "DAL", "2026-09-27", "Final: BAL 34, DAL 31"],
+["LV", "NO", "2026-09-27", "Final: LV 35, NO 27"],
+["LAR", "DEN", "2026-09-27", "Final: LAR 26, DEN 30"],
+["PHI", "CHI", "2026-09-28", "Final: PHI 7, CHI 27"]],
+STARTERS:{},INJ:{},FILLIN:{},WX:{},DINJ:{},ODDS:{}},
+4:{status:"final",backfill:true,dates:"Oct 1–5",updated:"",updatedAt:"",byes:[],defThrough:3,yardsOnly:true,
+GP:3,
+DEF:{ARI:[null,383,null,null,null,703,null,null,null],ATL:[null,143,null,null,null,789,null,null,null],BAL:[null,315,null,null,null,649,null,null,null],BUF:[null,321,null,null,null,763,null,null,null],CAR:[null,580,null,null,null,517,null,null,null],CHI:[null,351,null,null,null,621,null,null,null],CIN:[null,287,null,null,null,780,null,null,null],CLE:[null,361,null,null,null,672,null,null,null],DAL:[null,539,null,null,null,622,null,null,null],DEN:[null,431,null,null,null,711,null,null,null],DET:[null,352,null,null,null,898,null,null,null],GB:[null,416,null,null,null,606,null,null,null],HOU:[null,260,null,null,null,716,null,null,null],IND:[null,424,null,null,null,828,null,null,null],JAX:[null,274,null,null,null,707,null,null,null],KC:[null,299,null,null,null,535,null,null,null],LAC:[null,349,null,null,null,699,null,null,null],LAR:[null,304,null,null,null,514,null,null,null],LV:[null,349,null,null,null,601,null,null,null],MIA:[null,313,null,null,null,693,null,null,null],MIN:[null,257,null,null,null,702,null,null,null],NE:[null,325,null,null,null,510,null,null,null],NO:[null,386,null,null,null,635,null,null,null],NYG:[null,313,null,null,null,674,null,null,null],NYJ:[null,262,null,null,null,513,null,null,null],PHI:[null,382,null,null,null,579,null,null,null],PIT:[null,339,null,null,null,578,null,null,null],SEA:[null,261,null,null,null,425,null,null,null],SF:[null,317,null,null,null,622,null,null,null],TB:[null,228,null,null,null,620,null,null,null],TEN:[null,379,null,null,null,567,null,null,null],WAS:[null,246,null,null,null,841,null,null,null]},
+GAMES:[
+["PIT", "CLE", "2026-10-01", "Final: PIT 24, CLE 27"],
+["IND", "WAS", "2026-10-04", "Final: IND 30, WAS 13"],
+["ARI", "NYG", "2026-10-04", "Final: ARI 24, NYG 36"],
+["DAL", "HOU", "2026-10-04", "Final: DAL 34, HOU 30"],
+["GB", "TB", "2026-10-04", "Final: GB 17, TB 14"],
+["JAX", "CIN", "2026-10-04", "Final: JAX 22, CIN 17"],
+["LAR", "PHI", "2026-10-04", "Final: LAR 24, PHI 20"],
+["NE", "BUF", "2026-10-04", "Final: NE 29, BUF 26"],
+["NYJ", "CHI", "2026-10-04", "Final: NYJ 12, CHI 23"],
+["TEN", "BAL", "2026-10-04", "Final: TEN 18, BAL 24"],
+["MIA", "MIN", "2026-10-04", "Final: MIA 10, MIN 15"],
+["DEN", "SF", "2026-10-04", "Final: DEN 14, SF 24"],
+["KC", "LV", "2026-10-04", "Final: KC 30, LV 27"],
+["LAC", "SEA", "2026-10-04", "Final: LAC 23, SEA 30"],
+["DET", "CAR", "2026-10-04", "Final: DET 26, CAR 32"],
+["ATL", "NO", "2026-10-05", "Final: ATL 45, NO 24"]],
+STARTERS:{},INJ:{},FILLIN:{},WX:{},DINJ:{},ODDS:{}},
 5:{status:"live",dates:"Oct 8–12",updated:"Thu Oct 8, 4:16 PM MT",updatedAt:"2026-10-08T22:16:00Z",byes:["KC","CAR"],defThrough:4,
 GP:4,
 DEF:{
@@ -403,22 +489,25 @@ function loadWeek(n){
   for(const [t,a] of Object.entries(DEF)){
     const [ra,ry,rtd,pa,pc,py,ptd,int,sk]=a;
     const gp=typeof GP==="number"?GP:(GP[t]??GP.default);
-    D[t]={team:t,gp,ra,ry,rtd,pa,pc,py,ptd,int,sk,rypg:ry/gp,ypc:ry/ra,pypg:py/gp,ypa:py/pa,cmp:100*pc/pa};
+    const per=(x,y)=>x==null||!y?null:x/y;
+    D[t]={team:t,gp,ra,ry,rtd,pa,pc,py,ptd,int,sk,rypg:per(ry,gp),ypc:per(ry,ra),pypg:per(py,gp),ypa:per(py,pa),cmp:pc==null?null:100*pc/pa};
   }
-  ["rypg","ypc","pypg","ypa"].forEach(rankBy);
+  ["rypg","ypc","pypg","ypa"].filter(k=>Object.values(D).every(d=>d[k]!=null)).forEach(rankBy);
+  const ms=document.getElementById("metric");ms.disabled=!!W.yardsOnly||!Object.keys(D).length;
+  ms.title=ms.disabled?"Per-play ranks need carries and pass attempts, which aren't available for this week":"";
   // implied points: home = (total - home spread) / 2, away = (total + home spread) / 2
   IMP={};
   for(const [a,h] of GAMES){const o=ODDS[h];if(!o)continue;IMP[h]=(o[1]-o[0])/2;IMP[a]=(o[1]+o[0])/2}
   impRank={};Object.entries(IMP).sort((x,y)=>y[1]-x[1]).forEach(([t],i)=>impRank[t]=i+1);
   // a live week that has already finished reads as final until the next rebuild marks it
   const st=W.status==="live"&&n<CURRENT_WEEK?"final":W.status;
-  const tag=st==="preview"?"Preview":st==="final"?"Final · as of "+W.updated:"Updated "+W.updated;
+  const tag=W.backfill?"Final":st==="preview"?"Preview":st==="final"?"Final · as of "+W.updated:"Updated "+W.updated;
   document.getElementById("eyebrow").textContent=`NFL · 2026 Week ${n} · ${W.dates} · ${tag}`;
   document.getElementById("byes").textContent=W.byes.length?"On bye: "+W.byes.map(teamFull).join(", ")+".":"No teams on bye.";
-  document.getElementById("defNote").textContent=`Season totals through Week ${W.defThrough} (${typeof W.GP==="number"?W.GP+" games each":"per-team games played"}). Pass yards are gross passing yards allowed. Click a column to sort.`;
+  document.getElementById("defNote").textContent=W.backfill?(W.defThrough?`Defense going into Week ${n}: totals through Week ${W.defThrough} (${W.GP} game${W.GP>1?"s":""} each). Yards only; pass yards are net of sacks. Click a column to sort.`:"No games had been played before Week 1."):`Season totals through Week ${W.defThrough} (${typeof W.GP==="number"?W.GP+" games each":"per-team games played"}). Pass yards are gross passing yards allowed. Click a column to sort.`;
   const note=document.getElementById("weekNote");
   note.hidden=st==="live";
-  note.textContent=st==="preview"?`Week ${n} preview: matchups and defense ranks only. Injuries, weather and betting lines are added when this week's board is built Thursday morning.`:st==="final"?`Week ${n} is over. This is the board as it stood ${W.updated}.`:"";
+  note.textContent=W.backfill?(W.defThrough?`Week ${n} is over. Added after the fact: each matchup shows the opponent's defense ranks as they stood going into the week (yards allowed per game through Week ${W.defThrough}; pass yards net of sacks). Lineups, injuries, weather and lines weren't tracked this week.`:`Week ${n} is over. Added after the fact: no games had been played before Week 1, so there are no defense ranks. Lineups, injuries, weather and lines weren't tracked this week.`):st==="preview"?`Week ${n} preview: matchups and defense ranks only. Injuries, weather and betting lines are added when this week's board is built Thursday morning.`:st==="final"?`Week ${n} is over. This is the board as it stood ${W.updated}.`:"";
 }
 
 let state={view:"games",pos:"ALL",metric:"ypg",q:""};
@@ -426,12 +515,13 @@ try{const s=JSON.parse(localStorage.getItem("smb-state")||"{}");Object.assign(st
 function save(){try{localStorage.setItem("smb-state",JSON.stringify({view:state.view,pos:state.pos,metric:state.metric}))}catch(e){}}
 
 const tz="America/Denver";
-const fmtKick=iso=>new Date(iso).toLocaleString("en-US",{timeZone:tz,weekday:"short",hour:"numeric",minute:"2-digit"})+" MT";
+const fmtKick=iso=>iso.length===10?new Date(iso+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",weekday:"short",month:"short",day:"numeric"}):new Date(iso).toLocaleString("en-US",{timeZone:tz,weekday:"short",hour:"numeric",minute:"2-digit"})+" MT";
 
 function opp(team){for(const g of GAMES){if(g[0]===team)return{opp:g[1],home:false,g};if(g[1]===team)return{opp:g[0],home:true,g}}}
+const metric=()=>W.yardsOnly?"ypg":state.metric;
 function matchup(pos,oppTeam){
   const d=D[oppTeam]; const run=pos==="RB";
-  if(state.metric==="ypg") return run?{rank:d.r_rypg,val:d.rypg.toFixed(0),unit:"rush yds/g",side:"Run D"}:{rank:d.r_pypg,val:d.pypg.toFixed(0),unit:"pass yds/g",side:"Pass D"};
+  if(metric()==="ypg") return run?{rank:d.r_rypg,val:d.rypg.toFixed(0),unit:"rush yds/g",side:"Run D"}:{rank:d.r_pypg,val:d.pypg.toFixed(0),unit:"pass yds/g",side:"Pass D"};
   return run?{rank:d.r_ypc,val:d.ypc.toFixed(1),unit:"YPC",side:"Run D"}:{rank:d.r_ypa,val:d.ypa.toFixed(1),unit:"Y/A",side:"Pass D"};
 }
 const tier=r=>r>=23?"s":r<=10?"t":"m";
@@ -468,9 +558,35 @@ function nameEl(p){
   if(FILLIN[p.name]){const f=document.createElement("span");f.className="fill";f.textContent=FILLIN[p.name];nm.append(f)}
   return nm;
 }
+function rankLine(o){
+  const d=D[o];if(!d||d.r_rypg==null)return W.backfill&&!W.defThrough?"no prior games":"";
+  const m=metric();return `run ${ord(m==="ypg"?d.r_rypg:d.r_ypc)} · pass ${ord(m==="ypg"?d.r_pypg:d.r_ypa)}`;
+}
+function teamCard(a,h,iso,note){
+  const card=document.createElement("article");card.className="game";
+  card.innerHTML=`<div class="game-h"><b>${a} @ ${h}</b><small>${fmtKick(iso)}</small></div>${note?`<div class="odds"><b>${note}</b></div>`:""}`;
+  for(const t of [a,h]){
+    const o=t===a?h:a,d=D[o];
+    const side=document.createElement("div");side.className="side";
+    const rl=rankLine(o);
+    side.innerHTML=`<div class="side-h"><span>${TEAMS[t]} offense</span><span>vs ${o}${rl?": "+rl:""}</span></div>`+(d&&d.rypg!=null?`<div class="row"><span class="pos">RUN</span><span class="name">${TEAMS[o]} run D allowed</span>${chipHtml(d.r_rypg,d.rypg.toFixed(0)+" rush yds/g")}</div><div class="row"><span class="pos">PASS</span><span class="name">${TEAMS[o]} pass D allowed</span>${chipHtml(d.r_pypg,d.pypg.toFixed(0)+" pass yds/g")}</div>`:"");
+    card.append(side);
+  }
+  return card;
+}
+const chipHtml=(r,txt)=>`<span class="chip ${tier(r)}">${ord(r)} <span class="sm">· ${txt}</span></span>`;
 function renderGames(all){
   const box=document.getElementById("games");box.textContent="";
   let shown=0;
+  if(!Object.keys(STARTERS).length){
+    const q=state.q.trim().toLowerCase();
+    for(const [a,h,iso,note] of GAMES){
+      if(q&&!(a+" "+h+" "+TEAMS[a]+" "+TEAMS[h]+" "+CITY[a]+" "+CITY[h]).toLowerCase().includes(q))continue;
+      box.append(teamCard(a,h,iso,note));shown++;
+    }
+    if(!shown)box.innerHTML='<p class="empty">No games match that search.</p>';
+    return;
+  }
   for(const [a,h,iso,note] of GAMES){
     const sides=[a,h].map(t=>({t,ps:all.filter(p=>p.team===t&&passes(p))}));
     if(sides.every(s=>!s.ps.length)) continue;
@@ -482,7 +598,7 @@ function renderGames(all){
       if(!s.ps.length) continue;
       const o=opp(s.t).opp,d=D[o];
       const side=document.createElement("div");side.className="side";
-      side.innerHTML=`<div class="side-h"><span>${TEAMS[s.t]} offense${IMP[s.t]!=null?` <span class="imp ${impTier(s.t)}" title="Implied team total from the spread and over/under; ranked ${ord(impRank[s.t])} of ${Object.keys(IMP).length} this week">${IMP[s.t].toFixed(1)} pts</span>`:""}</span><span>vs ${o}: run ${ord(state.metric==="ypg"?d.r_rypg:d.r_ypc)} · pass ${ord(state.metric==="ypg"?d.r_pypg:d.r_ypa)}</span></div>`;
+      side.innerHTML=`<div class="side-h"><span>${TEAMS[s.t]} offense${IMP[s.t]!=null?` <span class="imp ${impTier(s.t)}" title="Implied team total from the spread and over/under; ranked ${ord(impRank[s.t])} of ${Object.keys(IMP).length} this week">${IMP[s.t].toFixed(1)} pts</span>`:""}</span><span>vs ${o}: ${rankLine(o)}</span></div>`;
       if(W.status!=="preview")side.append(dinjBlock(o));
       for(const p of s.ps){
         const row=document.createElement("div");row.className="row";
@@ -504,7 +620,7 @@ function renderList(all){
   t.tHead.innerHTML="<tr>"+cols.map(([k,l,n])=>`<th class="${n?"num":""}"><button data-k="${k}" ${listSort.key===k?`data-dir="${listSort.dir>0?"▲":"▼"}"`:""}>${l}</button></th>`).join("")+"</tr>";
   const rows=all.filter(passes).sort((x,y)=>{const k=listSort.key;let a=x[k],b=y[k];if(k==="val"){a=+a;b=+b}return (a>b?1:a<b?-1:0)*listSort.dir||x.name.localeCompare(y.name)});
   const tb=t.tBodies[0];tb.textContent="";
-  if(!rows.length){tb.innerHTML='<tr><td colspan="11" class="empty">No starters match that search.</td></tr>';return}
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="11" class="empty">${Object.keys(STARTERS).length?"No starters match that search.":"Lineups weren't tracked for Week "+WEEK+". Switch to By game to see its matchups."}</td></tr>`;return}
   for(const p of rows){
     const tr=document.createElement("tr");
     const cells=["NAME",p.pos,p.team,(p.home?"vs ":"@ ")+p.opp,p.side,`${p.val} ${p.unit}`,null,p.imp==null?"—":p.imp.toFixed(1),p.status||"Active",p.wx,fmtKick(p.kick)];
@@ -521,9 +637,11 @@ function renderDef(){
   t.tHead.innerHTML="<tr>"+cols.map(([k,l,n])=>`<th class="${n?"num":""}"><button data-k="${k}" ${defSort.key===k?`data-dir="${defSort.dir>0?"▲":"▼"}"`:""}>${l}</button></th>`).join("")+"</tr>";
   const rows=Object.values(D).map(d=>{const o=opp(d.team);const c=dinjCount(DINJ[d.team]||[]);return {...d,inj:o?([c.O&&c.O+" O",c.D&&c.D+" D",c.Q&&c.Q+" Q"].filter(Boolean).join(" · ")||"—"):"Bye",week:o?(o.home?"vs ":"faces ")+o.opp:"Bye"}}).sort((x,y)=>{const k=defSort.key;const a=x[k],b=y[k];return (a>b?1:a<b?-1:0)*defSort.dir});
   const tb=t.tBodies[0];tb.textContent="";
+  if(!rows.length){tb.innerHTML='<tr><td colspan="14" class="empty">No defense stats yet for this point in the season.</td></tr>'}
   for(const d of rows){
     const tr=document.createElement("tr");
-    const vals=[`${d.team} ${TEAMS[d.team]}`,d.rypg.toFixed(1),d.ypc.toFixed(1),d.rtd,"R",d.pypg.toFixed(1),d.ypa.toFixed(1),d.cmp.toFixed(1),d.ptd,d.int,d.sk,"P",d.inj,o2(d)];
+    const f=(v,k=1)=>v==null?"—":(k?v.toFixed(k):v);
+    const vals=[`${d.team} ${TEAMS[d.team]}`,f(d.rypg),f(d.ypc),f(d.rtd,0),"R",f(d.pypg),f(d.ypa),f(d.cmp),f(d.ptd,0),f(d.int,0),f(d.sk,0),"P",d.inj,o2(d)];
     vals.forEach((v,i)=>{const td=document.createElement("td");if(i>0&&i<12)td.className="num";
       if(v==="R"||v==="P"){const r=v==="R"?d.r_rypg:d.r_pypg;const s=document.createElement("span");s.className="chip "+tier(r);s.textContent=ord(r);td.append(s)}else td.textContent=v;tr.append(td)});
     tb.append(tr);
