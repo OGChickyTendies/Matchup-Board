@@ -122,7 +122,9 @@ footer a{color:var(--accent)}
 .side-h>span:last-child{margin-left:auto;white-space:nowrap}
 .imp{white-space:nowrap}
 .seg.weeks button{white-space:nowrap}
-@media (max-width:520px){.game-h b{font-size:21px}.chip .sm{display:none}}
+@media (max-width:520px){.game-h b{font-size:21px}.chip .sm{display:none}
+  /* narrow phones: the "vs" ranks always sit on their own line, left-aligned under the team name */
+  .side-h>span:last-child{flex-basis:100%;margin-left:0}}
 /* phones: the filter bar scrolls away instead of covering the cards, and the week buttons scroll sideways */
 @media (max-width:700px){
   .controls{position:static}
