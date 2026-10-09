@@ -101,6 +101,12 @@ footer a{color:var(--accent)}
 .dinj-key{margin:0 0 4px;color:var(--tough);font-weight:600;font-size:13px}
 .dinj ul{margin:4px 0 2px;padding-left:18px} .dinj li{margin:2px 0} .dinj i{font-style:normal;font-weight:600;color:var(--ink)}
 .chip .hurt{margin-left:4px;font-weight:700;color:var(--tough)}
+.game{scroll-margin-top:150px}
+@media (max-width:700px){.game{scroll-margin-top:12px}}
+.game.flash{animation:flash 1.6s ease-out}
+@keyframes flash{0%,35%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 3px transparent}}
+@media (prefers-reduced-motion:reduce){.game.flash{animation:none;box-shadow:0 0 0 3px var(--accent)}}
+#jump{max-width:100%}
 .unit-block{margin:6px 0;padding:3px 0 3px 10px;border-left:3px solid var(--line);font-size:13px;color:var(--muted)}
 .unit-block.ol{border-left-color:var(--ol)} .unit-block.def{border-left-color:var(--def)}
 .unit-head b{color:var(--ink);font-weight:600}
@@ -179,6 +185,7 @@ footer a{color:var(--accent)}
 <div class="controls">
   <div class="wrap">
     <div class="seg weeks" role="group" aria-label="Week" id="weekSeg"></div>
+    <select id="jump" aria-label="Jump to a game"><option value="">Jump to game…</option></select>
     <div class="seg" role="group" aria-label="View">
       <button id="v-games" aria-pressed="true" data-view="games">By game</button>
       <button id="v-list" aria-pressed="false" data-view="list">All starters</button>
@@ -549,7 +556,7 @@ function rankBy(key){ // 1 = fewest allowed (toughest), 32 = most (softest)
   const arr=Object.values(D).sort((x,y)=>x[key]-y[key]);
   arr.forEach((d,i)=>d["r_"+key]=i+1);
 }
-function loadWeek(n){
+let loadWeek=function(n){
   WEEK=n;W=WEEKS[n];({GP,DEF,GAMES,STARTERS,INJ,FILLIN,WX,DINJ,ODDS}=W);OLINJ=W.OLINJ||{};
   D={};
   for(const [t,a] of Object.entries(DEF)){
@@ -629,7 +636,7 @@ function rankLine(o){
   const m=metric();return `run ${ord(m==="ypg"?d.r_rypg:d.r_ypc)} · pass ${ord(m==="ypg"?d.r_pypg:d.r_ypa)}`;
 }
 function teamCard(a,h,iso,note){
-  const card=document.createElement("article");card.className="game";
+  const card=document.createElement("article");card.className="game";card.id=`g-${a}-${h}`;
   card.innerHTML=`<div class="game-h"><b>${a} @ ${h}</b><small>${fmtKick(iso)}</small></div>${note?`<div class="odds"><b>${note}</b></div>`:""}`;
   for(const t of [a,h]){
     const o=t===a?h:a,d=D[o];
@@ -660,7 +667,7 @@ function renderGames(all){
     const sides=[a,h].map(t=>({t,ps:all.filter(p=>p.team===t&&passes(p))}));
     if(sides.every(s=>!s.ps.length)) continue;
     shown++;
-    const card=document.createElement("article");card.className="game";
+    const card=document.createElement("article");card.className="game";card.id=`g-${a}-${h}`;
     const w=WX[h]||["",W.status==="preview"?"Forecast posts closer to kickoff":"Forecast unavailable",0];
     card.innerHTML=`<div class="game-h"><b>${a} @ ${h}</b><small>${fmtKick(iso)}${note?" · "+note:""}</small></div><div class="wx w${w[2]}"><b>${w[2]===2?"Weather alert":w[2]===1?"Watch":w[0]}</b><span>${w[1]}</span></div>${ODDS[h]?`<div class="odds"><b>${lineText(a,h)}</b><span>Implied: ${a} ${IMP[a].toFixed(1)} · ${h} ${IMP[h].toFixed(1)}</span></div>`:""}`;
     for(const s of sides){
@@ -742,6 +749,26 @@ function renderWeeks(){
     box.append(b);
   }
 }
+function fillJump(){
+  const sel=document.getElementById("jump");
+  sel.innerHTML='<option value="">Jump to game…</option>';
+  for(const [a,h,iso] of [...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2]))){
+    const o=document.createElement("option");o.value=`${a}-${h}`;o.textContent=`${a} @ ${h} · ${fmtKick(iso)}`;sel.append(o);
+  }
+}
+function jumpTo(id){
+  // the game must be on screen: switch to By game and clear filters that would hide it
+  if(state.view!=="games"){state.view="games";save()}
+  let card=document.getElementById("g-"+id);
+  if(!card||state.pos!=="ALL"||state.q){state.pos="ALL";state.q="";document.getElementById("q").value="";save();render();card=document.getElementById("g-"+id)}
+  else render(),card=document.getElementById("g-"+id);
+  if(!card)return;
+  const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  card.scrollIntoView({behavior:reduce?"auto":"smooth",block:"start"});
+  card.classList.remove("flash");void card.offsetWidth;card.classList.add("flash");
+}
+document.getElementById("jump").onchange=e=>{const v=e.target.value;e.target.value="";if(v)jumpTo(v)};
+const _loadWeek=loadWeek;loadWeek=n=>{_loadWeek(n);fillJump()};
 loadWeek(CURRENT_WEEK);renderWeeks();render();renderDef();
 
 /* ---------- refresh on open ---------- */
