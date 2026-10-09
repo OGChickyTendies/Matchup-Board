@@ -116,7 +116,20 @@ footer a{color:var(--accent)}
 .imp{font-variant-numeric:tabular-nums;font-weight:700;border-radius:6px;padding:1px 7px;font-size:12px;letter-spacing:.02em;text-transform:none}
 .imp.s{background:var(--soft-bg);color:var(--soft)} .imp.m{background:var(--mid-bg);color:var(--mid)} .imp.t{background:var(--tough-bg);color:var(--tough)}
 .wx b{font-weight:600;color:var(--ink)} .wx.w1 b{color:var(--mid)} .wx.w2 b{color:var(--tough)}
+/* offense header: team name and points badge always stay together; opponent ranks wrap below when space runs out */
+.side-h{flex-wrap:wrap;align-items:center;row-gap:2px}
+.side-h>span:first-child{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.side-h>span:last-child{margin-left:auto;white-space:nowrap}
+.imp{white-space:nowrap}
+.seg.weeks button{white-space:nowrap}
 @media (max-width:520px){.game-h b{font-size:21px}.chip .sm{display:none}}
+/* phones: the filter bar scrolls away instead of covering the cards, and the week buttons scroll sideways */
+@media (max-width:700px){
+  .controls{position:static}
+  .seg.weeks{flex:1 1 100%;scrollbar-width:none}
+  .seg.weeks::-webkit-scrollbar{display:none}
+  .seg.weeks button{padding:7px 11px}
+}
 </style>
 
 <div class="topbar">
