@@ -284,6 +284,7 @@ function lineText(a,h){const o=ODDS[h];if(!o)return"";const fav=o[0]<0?h:a;retur
    INJ player: [Q/D/O, injury]; FILLIN backup: note; WX home team: [type, forecast, impact 0-2];
    DINJ team: [[name, pos, Q/D/O/A, injury, note?]] where A = cleared to play (active on game day) and O also covers
    game-day inactives; note is optional, e.g. "DNP Wed–Thu" or "inactive"; OLINJ team: offensive linemen, same shape as DINJ (optional); ODDS home team: [home spread (negative = home favored), over/under].
+   reportsFor: optional list of team codes whose practice reports have started (preview weeks only).
    backfill: true marks weeks 1-4, added after the fact: no lineups, injuries, weather or lines, kickoff is a date,
    GAMES note holds the final score, and yardsOnly means DEF has yards but no attempts (null), so ranks use yards per game. */
 const WEEKS={
@@ -585,7 +586,7 @@ let loadWeek=function(n){
   document.getElementById("defNote").textContent=W.backfill?(W.defThrough?`Defense going into Week ${n}: totals through Week ${W.defThrough} (${W.GP} game${W.GP>1?"s":""} each). Yards only; pass yards are net of sacks. Click a column to sort.`:"No games had been played before Week 1."):`Season totals through Week ${W.defThrough} (${typeof W.GP==="number"?W.GP+" games each":"per-team games played"}). Pass yards are gross passing yards allowed. Click a column to sort.`;
   const note=document.getElementById("weekNote");
   note.hidden=st==="live";
-  note.textContent=W.backfill?(W.defThrough?`Week ${n} is over. Added after the fact: each matchup shows the opponent's defense ranks as they stood going into the week (yards allowed per game through Week ${W.defThrough}; pass yards net of sacks). Lineups, injuries, weather and lines weren't tracked this week.`:`Week ${n} is over. Added after the fact: no games had been played before Week 1, so there are no defense ranks. Lineups, injuries, weather and lines weren't tracked this week.`):st==="preview"?`Week ${n} preview: matchups and defense ranks only. Injuries, weather and betting lines are added when this week's board is built Thursday morning.`:st==="final"?`Week ${n} is over. This is the board as it stood ${W.updated}.`:"";
+  note.textContent=W.backfill?(W.defThrough?`Week ${n} is over. Added after the fact: each matchup shows the opponent's defense ranks as they stood going into the week (yards allowed per game through Week ${W.defThrough}; pass yards net of sacks). Lineups, injuries, weather and lines weren't tracked this week.`:`Week ${n} is over. Added after the fact: no games had been played before Week 1, so there are no defense ranks. Lineups, injuries, weather and lines weren't tracked this week.`):st==="preview"?`Week ${n} preview: matchups and defense ranks, plus practice-report injuries for teams that have started reporting. The full board, with weather and betting lines, is built Wednesday after the first full practice report.`:st==="final"?`Week ${n} is over. This is the board as it stood ${W.updated}.`:"";
 }
 
 let state={view:"games",pos:"ALL",metric:"ypg",q:""};
@@ -680,7 +681,8 @@ function renderGames(all){
       const o=opp(s.t).opp,d=D[o];
       const side=document.createElement("div");side.className="side";
       side.innerHTML=`<div class="side-h"><span>${TEAMS[s.t]} offense${IMP[s.t]!=null?` <span class="imp ${impTier(s.t)}" title="Implied team total from the spread and over/under; ranked ${ord(impRank[s.t])} of ${Object.keys(IMP).length} this week">${IMP[s.t].toFixed(1)} pts</span>`:""}</span><span>vs ${o}: ${rankLine(o)}</span></div>`;
-      if(W.status!=="preview"){side.append(olBlock(s.t));side.append(dinjBlock(o))}
+      // preview weeks show injury blocks once practice reports for those teams have started
+      if(W.status!=="preview"||(DINJ[o]||OLINJ[s.t]||W.reportsFor?.includes(s.t))){side.append(olBlock(s.t));side.append(dinjBlock(o))}
       for(const p of s.ps){
         const row=document.createElement("div");row.className="row";
         const pos=document.createElement("span");pos.className="pos";pos.textContent=p.pos;
