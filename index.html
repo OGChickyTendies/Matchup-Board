@@ -215,7 +215,8 @@ h2{margin:16px 0 0;font-family:var(--display);font-size:30px;font-weight:800;tex
 .side+.side{border-top:1px dashed var(--line-2)}
 .side-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;margin-bottom:6px}
 .side-h h4{margin:0;font-family:var(--display);font-weight:800;font-size:18px;letter-spacing:.02em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
-.side-h .vs{font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.04em}
+.side-h .vs{font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:0}
+.side-h .vs .vseg{white-space:nowrap}
 .ipill{font-family:var(--mono);font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-3);color:var(--ink);text-transform:none;letter-spacing:0}
 .ipill.hot{background:var(--soft-tint);color:var(--soft-ink)}
 .side-ol{margin:0 0 4px;font-size:12px;color:var(--ink-4)}
@@ -973,10 +974,11 @@ function rowHtml(p){
 }
 function mRowHtml(p,withTeam){
   const r=p.rank==null?`<span class="chip none">—</span>`:(()=>{const t=tier(p.rank),u=dinjSplit(p.opp)[p.pos==="RB"?"front":"sec"].filter(x=>x[2]==="O"||x[2]==="D");return `<span class="chip ${t}" title="${esc((p.sk?`${TEAMS[p.opp]} vs QBs: ${p.val} ${p.unit}, ${p.sk} (${p.why}); QB rank ${ord(p.rank)} of 32`:`${TEAMS[p.opp]} ${p.side}: ${p.val} ${p.unit}, ranked ${ord(p.rank)} of 32`)+(u.length?`. Missing or doubtful: ${u.map(x=>x[1]+" "+x[0]).join(", ")}`:""))}">${p.rank}${u.length?'<span class="hurt">+</span>':""}</span>`})();
-  const sub=(withTeam?`${p.team} ${p.home?"vs":"@"} ${p.opp} · `:`vs ${p.opp} `)+`${p.side}`+(p.val?` · ${p.val} ${p.unit}`:"")+(p.sk?` · ${p.sk}`:"")+(withTeam&&p.status?` · ${esc(p.status)}`:"");
+  // by-game rows stay on one line: the defense's yards allowed sit in the side header (rankLine), not under each player
+  const sub=withTeam?`${p.team} ${p.home?"vs":"@"} ${p.opp} · ${p.side}`+(p.val?` · ${p.val} ${p.unit}`:"")+(p.sk?` · ${p.sk}`:"")+(p.status?` · ${esc(p.status)}`:""):"";
   const right=hasFp()?fpCell(p):"";
   const imp=withTeam&&p.imp!=null?`<small>${p.imp.toFixed(1)} pts</small>`:"";
-  return `<div class="mrow"><span class="pos" style="--c:${POSC[p.pos]}">${p.pos}</span><div class="mname">${nameCell(p)}<small>${sub}</small></div>${r}<div class="mright">${right}${imp}</div></div>`;
+  return `<div class="mrow"><span class="pos" style="--c:${POSC[p.pos]}">${p.pos}</span><div class="mname">${nameCell(p)}${sub?`<small>${sub}</small>`:""}</div>${r}<div class="mright">${right}${imp}</div></div>`;
 }
 function mobileSides(a,h,ps){
   let out="";
@@ -984,11 +986,18 @@ function mobileSides(a,h,ps){
     const rows=ps.filter(p=>p.team===t);if(!rows.length)continue;
     const o=t===a?h:a,imp=IMP[t],fp=sideFp(t),rl=rankLine(o);
     const ol=W.backfill?"":`<p class="side-ol">O-line: ${olCell(t)}</p>`;
-    out+=`<div class="side"><div class="side-h"><h4>${TEAMS[t]}${imp!=null?`<span class="ipill${impTier(t)==="s"?" hot":""}">${imp.toFixed(1)} pts</span>`:""}${fp?`<span class="ipill">${fp}</span>`:""}</h4><span class="vs">vs ${o}${rl?": "+rl:""}</span></div>${ol}${rows.map(p=>mRowHtml(p,false)).join("")}</div>`;
+    out+=`<div class="side"><div class="side-h"><h4>${TEAMS[t]}${imp!=null?`<span class="ipill${impTier(t)==="s"?" hot":""}">${imp.toFixed(1)} pts</span>`:""}${fp?`<span class="ipill">${fp}</span>`:""}</h4><span class="vs">vs ${o}${rl?" · "+rl:""}</span></div>${ol}${rows.map(p=>mRowHtml(p,false)).join("")}</div>`;
   }
   return out||`<div class="side"><p class="mempty">No starters at this position in this game</p></div>`;
 }
-function rankLine(o){const d=D[o];if(!d||d.r_rypg==null)return"";const m=metric();return `run ${ord(m==="ypg"?d.r_rypg:d.r_ypc)} · pass ${ord(m==="ypg"?d.r_pypg:d.r_ypa)}`}
+function rankLine(o){
+  // the opposing defense in one line: run and pass ranks with yards allowed, then its pass rush (sacks)
+  const d=D[o];if(!d||d.r_rypg==null)return"";const y=metric()==="ypg",seg=t=>`<span class="vseg">${t}</span>`;
+  const run=y?`run ${ord(d.r_rypg)} ${d.rypg.toFixed(1)}/g`:`run ${ord(d.r_ypc)} ${d.ypc.toFixed(1)} YPC`;
+  const pass=y?`pass ${ord(d.r_pypg)} ${d.pypg.toFixed(1)}/g`:`pass ${ord(d.r_ypa)} ${d.ypa.toFixed(1)} Y/A`;
+  const sk=y?(d.skpg!=null?`sacks ${ord(d.r_skpg)} ${d.skpg.toFixed(1)}/g`:""):(d.skpd!=null?`sack rate ${ord(d.r_skpd)} ${(100*d.skpd).toFixed(1)}%`:"");
+  return [run,pass,sk].filter(Boolean).map((t,i)=>seg((i?"· ":"")+t)).join(" "); // the dot travels with the item after it when the line wraps
+}
 function renderGames(all){
   const box=document.getElementById("games");box.textContent="";
   let shown=0;
