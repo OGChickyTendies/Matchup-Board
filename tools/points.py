@@ -5,8 +5,9 @@ Usage: python3 tools/points.py <page.html> [--csv stats.csv]
 
 Reads `const WEEKS={...}` from the page, downloads nflverse's 2026 weekly player
 stats (github.com/nflverse/nflverse-data, release "stats_player"), and for every
-non-preview week writes a `FP:{...}` line: starter name -> [standard pts, PPR pts,
-stat line]. Half PPR is computed on the page as the average of the two.
+non-preview week updates the `FP:{...}` line: starter name -> [standard pts, PPR pts,
+stat line] and a `BOX:{...}` line: starter name -> box score (the player dialog). Half PPR is
+computed on the page as the average of the two.
 
 Only games that are over (kickoff + 4 hours has passed) and already present in the
 stats file are scored. A starter whose team has stats but who has no row of his own
@@ -61,6 +62,40 @@ def stat_line(r):
     if two: parts.append(f"{two} two-pt")
     if i("special_teams_tds"): parts.append(f"{i('special_teams_tds')} return TD")
     return " · ".join(parts) or "No stats recorded"
+
+
+BOXMAP = [("pass_cmp", "completions"), ("pass_att", "attempts"), ("pass_yd", "passing_yards"),
+          ("pass_td", "passing_tds"), ("pass_int", "passing_interceptions"), ("pass_sack", "sacks_suffered"),
+          ("rush_att", "carries"), ("rush_yd", "rushing_yards"), ("rush_td", "rushing_tds"), ("rush_fd", "rushing_first_downs"),
+          ("rec_tgt", "targets"), ("rec", "receptions"), ("rec_yd", "receiving_yards"), ("rec_td", "receiving_tds"),
+          ("pass_2pt", "passing_2pt_conversions"), ("rush_2pt", "rushing_2pt_conversions"),
+          ("rec_2pt", "receiving_2pt_conversions"), ("st_td", "special_teams_tds")]
+
+
+def box_row(r):
+    """Box score for the page's player dialog: page stat key -> value, nonzero values only."""
+    b = {}
+    for k, col in BOXMAP:
+        v = num(r.get(col))
+        if v:
+            b[k] = int(v) if v.is_integer() else round(v, 1)
+    fl = num(r.get("rushing_fumbles_lost")) + num(r.get("receiving_fumbles_lost")) + num(r.get("sack_fumbles_lost"))
+    if fl:
+        b["fum_lost"] = int(fl)
+    if num(r.get("targets")):
+        b["rec_yac"] = int(num(r.get("receiving_yards_after_catch")))
+        b["tgt_share"] = round(num(r.get("target_share")), 3)
+    return b
+
+
+def set_line(block, key, value):
+    """Replace or add the one-line `KEY:{...},` field right after the week's header line."""
+    lit = f"{key}:" + json.dumps(value, ensure_ascii=False, separators=(",", ":")) + ","
+    pat = re.compile(r"\n%s:\{[^\n]*\},(?=\n)" % key)
+    if pat.search(block):
+        return pat.sub(lambda _: "\n" + lit, block, count=1)
+    nl = block.index("\n")
+    return block[:nl] + "\n" + lit + block[nl:]
 
 
 def read_weeks(page):
@@ -133,7 +168,8 @@ def main():
                     if lu:
                         starters[t] = lu
             made_lineups = bool(starters)
-        fp = {}
+        fp = dict(W.get("FP") or {})  # keep entries already there for games not in this stats file yet
+        box = dict(W.get("BOX") or {})
         done = 0
         for g in W["GAMES"]:
             a, h, iso = g[0], g[1], g[2]
@@ -156,13 +192,17 @@ def main():
                         r = c[0] if len(c) == 1 else None
                     if r is None:
                         fp[name] = [0, 0, "No stats recorded"]
+                        box[name] = {"dnp": 1}
                     else:
                         fp[name] = [round(num(r["fantasy_points"]), 2), round(num(r["fantasy_points_ppr"]), 2), stat_line(r)]
+                        box[name] = box_row(r)
         if not fp and not made_lineups:
             continue
         s0, s1 = week_block(page, int(n))
         block = page[s0:s1]
         block = re.sub(r"\nFP:\{[^\n]*\},(?=\n)", "", block)
+        if box:
+            block = set_line(block, "BOX", box)
         if made_lineups:
             lit = "STARTERS:{\n" + ",\n".join(f"{t}:{json.dumps(v, ensure_ascii=False)}" for t, v in starters.items()) + "},"
             assert block.count("STARTERS:{},") == 1, f"week {n}: STARTERS literal not found"
