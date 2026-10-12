@@ -244,18 +244,20 @@ h2{margin:16px 0 0;font-family:var(--display);font-size:30px;font-weight:800;tex
   .team h3{font-size:21px}
 }
 @media (max-width:520px){
-  .site-top .wrap{padding-block:8px;flex-wrap:nowrap;gap:10px}
-  .brand{font-size:clamp(17px,5.4vw,25px);gap:8px;white-space:nowrap;flex:none}
-  .brand svg{width:30px;height:30px}
-  .meta{margin-left:auto;min-width:0;flex:0 1 auto;gap:8px}
-  #jump{width:140px;min-width:0;flex:0 1 140px;min-height:40px;font-size:16px;padding:0 26px 0 10px;background-position:right 9px center}
+  .site-top .wrap{padding-block:8px;flex-wrap:nowrap;gap:8px}
+  .brand{font-size:clamp(16px,5.2vw,25px);gap:7px;white-space:nowrap;flex:0 1 auto;min-width:0}
+  .brand>span{overflow:hidden;text-overflow:ellipsis}
+  .brand svg{flex:none}
+  .brand svg{width:28px;height:28px}
+  .meta{margin-left:auto;min-width:0;flex:none;gap:6px}
+  #jump{width:120px;flex:none;min-height:36px;font-size:15px;letter-spacing:0;padding:0 20px 0 8px;background-position:right 6px center;border-radius:10px}
 }
 .totop{display:none;place-items:center;flex:none;width:44px;height:44px;border-radius:12px;border:1px solid var(--brand-deep);background:var(--brand-deep);color:var(--on-brand);cursor:pointer;padding:0}
 .totop.show{display:grid;animation:totop .2s ease both}
 @keyframes totop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
 .totop:hover{background:var(--brand);border-color:var(--brand)}
 @media (prefers-reduced-motion:reduce){.totop.show{animation:none}}
-@media (max-width:520px){.totop{width:40px;height:40px;border-radius:10px}}
+@media (max-width:520px){.totop{width:36px;height:36px;border-radius:10px}.totop svg{width:18px;height:18px}}
 footer{border-top:1px solid var(--line);padding-block:14px 32px;font-size:12px;color:var(--ink-4)}
 footer p{margin:0;max-width:110ch}
 </style>
@@ -272,8 +274,8 @@ footer p{margin:0;max-width:110ch}
       <span>Matchup <span>Sheet</span></span>
     </p>
     <div class="meta">
-      <label for="jump" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Jump to game</label>
-      <select id="jump"><option value="">Jump to game</option></select>
+      <label for="jump" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Jump to Game</label>
+      <select id="jump"><option value="">Jump to Game</option></select>
       <button class="totop" id="toTop" type="button" aria-label="Back to top" title="Back to top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </div>
   </div>
@@ -1115,13 +1117,9 @@ function renderWeeks(){
   sel.value=String(WEEK);
 }
 document.getElementById("weekSel").onchange=e=>{loadWeek(+e.target.value);render();renderDef()};
-// the jump menu sits in the header; phones get a shorter label so the bar stays on one line
-const narrow=matchMedia("(max-width: 520px)");
-const jumpLabel=()=>narrow.matches?"Games":"Jump to game";
-narrow.addEventListener?.("change",()=>{const o=document.querySelector('#jump option[value=""]');if(o)o.textContent=jumpLabel()});
 function fillJump(){
   const sel=document.getElementById("jump");
-  sel.innerHTML=`<option value="">${jumpLabel()}</option>`+[...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2])).map(([a,h,iso])=>{const s=SCORES[h];return `<option value="${a}-${h}">${a} @ ${h} · ${s?`Final ${a} ${s[0]}, ${h} ${s[1]}`:fmtKick(iso)}</option>`}).join("");
+  sel.innerHTML='<option value="">Jump to Game</option>'+[...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2])).map(([a,h,iso])=>{const s=SCORES[h];return `<option value="${a}-${h}">${a} @ ${h} · ${s?`Final ${a} ${s[0]}, ${h} ${s[1]}`:fmtKick(iso)}</option>`}).join("");
 }
 function jumpTo(id){
   // the game must be on screen: switch to By game and clear filters that would hide it
@@ -1145,7 +1143,7 @@ loadWeek(CURRENT_WEEK);renderWeeks();render();renderDef();
   const b=document.getElementById("toTop");let on=false;
   const tick=()=>{const v=scrollY>600;if(v!==on){on=v;b.classList.toggle("show",v)}};
   addEventListener("scroll",tick,{passive:true});tick();
-  b.onclick=()=>{const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;scrollTo({top:0,behavior:reduce?"auto":"smooth"});document.getElementById("jump").focus({preventScroll:true})};
+  b.onclick=()=>{const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;scrollTo({top:0,behavior:reduce?"auto":"smooth"});b.blur()};
 })();
 
 /* ---------- refresh on open ---------- */
