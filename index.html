@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 </head>
 <body>
-
 <title>Matchup Sheet</title>
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="Matchup Sheet">
@@ -48,9 +47,9 @@ html{scroll-padding-top:calc(var(--toph,64px) + 12px)}
 .brand>span>span{color:var(--brand)}
 .brand svg{flex:none;width:clamp(38px,4.6vw,46px);height:auto}
 .meta{display:flex;align-items:center;gap:10px}
-.season{font-family:var(--mono);font-size:12px;color:var(--ink-3);padding:6px 10px;border-radius:999px;background:var(--surface-2);white-space:nowrap}
 select{appearance:none;-webkit-appearance:none;background:var(--bg) var(--chev) no-repeat right 11px center;border:1px solid var(--line-2);border-radius:10px;min-height:40px;padding:0 32px 0 12px;font-size:14px;color:var(--ink);cursor:pointer;max-width:100%;min-width:0}
-#weekSel{min-height:44px;background-color:var(--surface-2);border-radius:12px;font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:.02em}
+#jump{width:220px;min-height:44px;background-color:var(--surface-2);border-radius:12px;font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:.02em;text-overflow:ellipsis;white-space:nowrap}
+#weekSel{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:.02em;background-color:var(--surface-2)}
 
 /* hero */
 main{display:flex;flex-direction:column;gap:20px;padding-block:28px 40px}
@@ -245,13 +244,11 @@ h2{margin:16px 0 0;font-family:var(--display);font-size:30px;font-weight:800;tex
   .team h3{font-size:21px}
 }
 @media (max-width:520px){
-  .site-top .wrap{padding-block:8px}
-  .brand{font-size:25px;gap:9px;white-space:nowrap;flex:none}
-  .meta{margin-left:auto}
-  #weekSel{max-width:100%}
-  .brand svg{width:34px;height:34px}
-  .season{display:none}
-  #weekSel{min-height:40px;font-size:16px;padding-right:28px}
+  .site-top .wrap{padding-block:8px;flex-wrap:nowrap;gap:10px}
+  .brand{font-size:clamp(17px,5.4vw,25px);gap:8px;white-space:nowrap;flex:none}
+  .brand svg{width:30px;height:30px}
+  .meta{margin-left:auto;min-width:0;flex:0 1 auto;gap:8px}
+  #jump{width:140px;min-width:0;flex:0 1 140px;min-height:40px;font-size:16px;padding:0 26px 0 10px;background-position:right 9px center}
 }
 .totop{display:none;place-items:center;flex:none;width:44px;height:44px;border-radius:12px;border:1px solid var(--brand-deep);background:var(--brand-deep);color:var(--on-brand);cursor:pointer;padding:0}
 .totop.show{display:grid;animation:totop .2s ease both}
@@ -275,9 +272,8 @@ footer p{margin:0;max-width:110ch}
       <span>Matchup <span>Sheet</span></span>
     </p>
     <div class="meta">
-      <span class="season">NFL · 2026</span>
-      <label for="weekSel" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Week</label>
-      <select id="weekSel"></select>
+      <label for="jump" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Jump to game</label>
+      <select id="jump"><option value="">Jump to game</option></select>
       <button class="totop" id="toTop" type="button" aria-label="Back to top" title="Back to top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </div>
   </div>
@@ -294,6 +290,7 @@ footer p{margin:0;max-width:110ch}
   </section>
 
   <div class="filters" role="group" aria-label="Filters">
+    <label class="field" for="weekSel">Week <select id="weekSel"></select></label>
     <div class="seg" role="group" aria-label="View">
       <button id="v-games" type="button" aria-pressed="true" data-view="games">By game</button>
       <button id="v-list" type="button" aria-pressed="false" data-view="list">All starters</button>
@@ -308,7 +305,6 @@ footer p{margin:0;max-width:110ch}
     <input type="search" id="q" placeholder="Search player or team" aria-label="Search player or team">
     <label class="field" for="metric">Rank by <select id="metric"><option value="ypg">Yards allowed / game</option><option value="eff">Yards / play (YPC, Y/A)</option></select></label>
     <label class="field" for="scoring" id="scoringField" hidden>Fantasy <select id="scoring"><option value="ppr">PPR</option><option value="half">Half PPR</option><option value="std">Standard</option></select></label>
-    <label class="field" for="jump">Jump to <select id="jump"><option value="">All games</option></select></label>
   </div>
 
   <div class="legend">
@@ -859,7 +855,7 @@ function loadWeek(n){
   // a live week that has already finished reads as final until the next rebuild marks it
   const st=W.status==="live"&&n<CURRENT_WEEK?"final":W.status;
   const tag=W.backfill?"Final":st==="preview"?"Preview":st==="final"?"Final · as of "+W.updated:"Updated "+W.updated;
-  document.getElementById("eyebrow").textContent=`Week ${n} · ${W.dates} · ${tag}`;
+  document.getElementById("eyebrow").textContent=`NFL 2026 · Week ${n} · ${W.dates} · ${tag}`;
   document.getElementById("byes").textContent=W.byes.length?"On bye: "+W.byes.map(teamFull).join(", ")+".":"No teams on bye.";
   document.getElementById("defNote").textContent=W.backfill?(W.defThrough?`Defense going into Week ${n}: totals through Week ${W.defThrough} (${W.GP} game${W.GP>1?"s":""} each). Yards only; pass yards are net of sacks. Click a column to sort.`:"No games had been played before Week 1."):`Season totals through Week ${W.defThrough} (${typeof W.GP==="number"?W.GP+" games each":"per-team games played"}). Pass yards are gross passing yards allowed. Click a column to sort.`;
   const note=document.getElementById("weekNote");
@@ -1119,9 +1115,13 @@ function renderWeeks(){
   sel.value=String(WEEK);
 }
 document.getElementById("weekSel").onchange=e=>{loadWeek(+e.target.value);render();renderDef()};
+// the jump menu sits in the header; phones get a shorter label so the bar stays on one line
+const narrow=matchMedia("(max-width: 520px)");
+const jumpLabel=()=>narrow.matches?"Games":"Jump to game";
+narrow.addEventListener?.("change",()=>{const o=document.querySelector('#jump option[value=""]');if(o)o.textContent=jumpLabel()});
 function fillJump(){
   const sel=document.getElementById("jump");
-  sel.innerHTML='<option value="">All games</option>'+[...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2])).map(([a,h,iso])=>{const s=SCORES[h];return `<option value="${a}-${h}">${a} @ ${h} · ${s?`Final ${a} ${s[0]}, ${h} ${s[1]}`:fmtKick(iso)}</option>`}).join("");
+  sel.innerHTML=`<option value="">${jumpLabel()}</option>`+[...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2])).map(([a,h,iso])=>{const s=SCORES[h];return `<option value="${a}-${h}">${a} @ ${h} · ${s?`Final ${a} ${s[0]}, ${h} ${s[1]}`:fmtKick(iso)}</option>`}).join("");
 }
 function jumpTo(id){
   // the game must be on screen: switch to By game and clear filters that would hide it
@@ -1145,7 +1145,7 @@ loadWeek(CURRENT_WEEK);renderWeeks();render();renderDef();
   const b=document.getElementById("toTop");let on=false;
   const tick=()=>{const v=scrollY>600;if(v!==on){on=v;b.classList.toggle("show",v)}};
   addEventListener("scroll",tick,{passive:true});tick();
-  b.onclick=()=>{const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;scrollTo({top:0,behavior:reduce?"auto":"smooth"});document.getElementById("weekSel").focus({preventScroll:true})};
+  b.onclick=()=>{const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;scrollTo({top:0,behavior:reduce?"auto":"smooth"});document.getElementById("jump").focus({preventScroll:true})};
 })();
 
 /* ---------- refresh on open ---------- */
@@ -1187,6 +1187,5 @@ showIdle();
   else{showIdle();btn.hidden=false}
 })();
 </script>
-
 </body>
 </html>
