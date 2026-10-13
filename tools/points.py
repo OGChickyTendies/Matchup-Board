@@ -128,6 +128,7 @@ def week_block(page, n):
 
 ALT_MIN = 5.0  # flag a passed-over teammate only when he outscored the listed starter by this many PPR points
 VPOS_POS = {"QB": "QB", "RB": "RB", "FB": "RB", "WR": "WR", "TE": "TE"}
+VPOS_KEYS = ("QB", "RB", "WR", "TE", "WR1", "WR2", "WR3")
 VPOS_PRIOR_OFF = 1.0   # offense baseline: its other games plus this many league-average games
 VPOS_PRIOR_LAST = 6.0  # defense rating starts from last season's rating, counted as this many games
 VPOS_PRIOR_DEF = 2.0   # without last season's data: shrink toward average as if 2 average games
@@ -155,6 +156,9 @@ def vpos_for_week(rows, n, last=None):
     without `last`, shrunk toward zero as if it had two average games. Rank 1 = toughest
     (allows the least relative to expectation), 32 = softest. Returns None before any games.
     Output per defense and position: [rank, yards/g allowed, PPR pts/g allowed, adjusted pts/g, games].
+    Receivers are also rated by role, WR1 / WR2 / WR3: in each game the offense's receivers are
+    ordered by their season targets coming into that game (in a team's first game, by that game's
+    targets), so a defense that shuts down No. 1 receivers but leaks to slot/No. 3 options shows it.
     """
     prior = [r for r in rows if int(r["week"]) < n]
     if not prior:
@@ -162,13 +166,31 @@ def vpos_for_week(rows, n, last=None):
     tg = {}  # (game_id, offense) -> {"def": team, pos: [pts, yds]}
     for r in prior:
         key = (r["game_id"], r["team"])
-        g = tg.setdefault(key, {"def": r["opponent_team"], **{p: [0.0, 0.0] for p in ("QB", "RB", "WR", "TE")}})
+        g = tg.setdefault(key, {"def": r["opponent_team"], **{p: [0.0, 0.0] for p in VPOS_KEYS}})
         pos = VPOS_POS.get(r["position"])
         if pos:
             g[pos][0] += num(r.get("fantasy_points_ppr"))
             g[pos][1] += vpos_yards(r, pos)
+    # receiver roles: order each team's WRs in each game by season targets before that game
+    season_tg = {}  # (team, week) -> {player: targets in earlier weeks}
+    wrs = {}
+    for r in prior:
+        if r["position"] == "WR":
+            wrs.setdefault((r["game_id"], r["team"]), []).append(r)
+    for (gid, off), rs in wrs.items():
+        wk = int(rs[0]["week"])
+        before = season_tg.get((off, wk))
+        if before is None:
+            before = {}
+            for r in prior:
+                if r["team"] == off and r["position"] == "WR" and int(r["week"]) < wk:
+                    before[r["player_display_name"]] = before.get(r["player_display_name"], 0) + num(r["targets"])
+            season_tg[(off, wk)] = before
+        rs = sorted(rs, key=lambda r: (-before.get(r["player_display_name"], 0), -num(r["targets"])) if before else (-num(r["targets"]),))
+        for i, r in enumerate(rs[:3]):
+            tg[(gid, off)][f"WR{i + 1}"] = [num(r.get("fantasy_points_ppr")), num(r.get("receiving_yards"))]
     out = {}
-    for pos in ("QB", "RB", "WR", "TE"):
+    for pos in VPOS_KEYS:
         league = sum(g[pos][0] for g in tg.values()) / len(tg)
         by_off = {}
         for (gid, off), g in tg.items():
@@ -193,6 +215,17 @@ def vpos_for_week(rows, n, last=None):
             adj, a = rated[d]
             out.setdefault(d, {})[pos] = [i + 1, round(a[2] / a[3], 1), round(a[1] / a[3], 1), round(adj, 1), a[3]]
     return {"thru": max(int(r["week"]) for r in prior), "t": dict(sorted(out.items()))}
+
+
+def wr_roles(rows, n, starters):
+    """Listed WRs in role order (WR1, WR2, WR3) for week n: by season targets before week n,
+    keeping the listed order for ties and for players without targets yet."""
+    tg = {}
+    for r in rows:
+        if int(r["week"]) < n:
+            k = (r["team"], norm(r["player_display_name"]))
+            tg[k] = tg.get(k, 0) + num(r["targets"])
+    return {t: sorted(s[2], key=lambda x: -tg.get((t, norm(x)), 0)) for t, s in starters.items()}
 
 
 def kick_ms(iso):
@@ -323,6 +356,7 @@ def main():
         v = vpos_for_week(rows, int(n), last)
         if not v:
             continue
+        v["wr"] = wr_roles(rows, int(n), weeks[n].get("STARTERS") or {})
         s0, s1 = week_block(page, int(n))
         page = page[:s0] + set_line(page[s0:s1], "VPOS", v) + page[s1:]
         vrep.append(f"{n} (thru Wk {v['thru']})")
