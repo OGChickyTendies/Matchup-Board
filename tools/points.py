@@ -17,12 +17,16 @@ Backfilled weeks (backfill:true) with an empty STARTERS get a lineup built from 
 actually played: the QB with the most pass attempts, the RB with the most carries,
 the three WRs and the TE with the most targets.
 
+It also writes each week's `VPOS:{...}` line: how every defense has done against each
+position (QB, RB, WR, TE) in the games played before that week. See vpos_for_week().
+
 Needs node (to read the WEEKS literal) and curl (the download goes through the proxy).
 """
 import csv, json, re, subprocess, sys, tempfile, os, time
 from datetime import datetime, timezone
 
 URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2026.csv"
+PREV_URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2025.csv"  # last season: prior for defense-vs-position
 TEAM_FIX = {"LA": "LAR"}  # nflverse code -> page code
 SUFFIX = re.compile(r"\b(jr|sr|ii|iii|iv|v)\b")
 
@@ -120,6 +124,74 @@ def week_block(page, n):
     return m.start() + 1, nxt.start()
 
 
+VPOS_POS = {"QB": "QB", "RB": "RB", "FB": "RB", "WR": "WR", "TE": "TE"}
+VPOS_PRIOR_OFF = 1.0   # offense baseline: its other games plus this many league-average games
+VPOS_PRIOR_LAST = 6.0  # defense rating starts from last season's rating, counted as this many games
+VPOS_PRIOR_DEF = 2.0   # without last season's data: shrink toward average as if 2 average games
+# Backtest on 2026 Weeks 2-5 (Spearman correlation of the pre-week rank with PPR actually allowed):
+# team pass/rush yards 0.00, this season's adjusted rating alone 0.09, blended with 2025 x6 games 0.17.
+
+
+def vpos_yards(r, pos):
+    if pos == "QB":
+        return num(r.get("passing_yards"))
+    if pos == "RB":
+        return num(r.get("rushing_yards")) + num(r.get("receiving_yards"))
+    return num(r.get("receiving_yards"))
+
+
+def vpos_for_week(rows, n, last=None):
+    """Defense vs position going into week n, from every game played in weeks before n.
+
+    For each team-game, add up the PPR points and yards scored by the offense's QBs, RBs,
+    WRs and TEs. A defense's rating for a position is opponent-adjusted: in each game, how
+    many PPR points that position scored above or below what the same offense usually scores
+    there (its average in its other games, padded with one league-average game). Those are
+    averaged together with last season's rating for that defense (`last`, counted as
+    VPOS_PRIOR_LAST games), so early weeks lean on last season and later weeks on this one;
+    without `last`, shrunk toward zero as if it had two average games. Rank 1 = toughest
+    (allows the least relative to expectation), 32 = softest. Returns None before any games.
+    Output per defense and position: [rank, yards/g allowed, PPR pts/g allowed, adjusted pts/g, games].
+    """
+    prior = [r for r in rows if int(r["week"]) < n]
+    if not prior:
+        return None
+    tg = {}  # (game_id, offense) -> {"def": team, pos: [pts, yds]}
+    for r in prior:
+        key = (r["game_id"], r["team"])
+        g = tg.setdefault(key, {"def": r["opponent_team"], **{p: [0.0, 0.0] for p in ("QB", "RB", "WR", "TE")}})
+        pos = VPOS_POS.get(r["position"])
+        if pos:
+            g[pos][0] += num(r.get("fantasy_points_ppr"))
+            g[pos][1] += vpos_yards(r, pos)
+    out = {}
+    for pos in ("QB", "RB", "WR", "TE"):
+        league = sum(g[pos][0] for g in tg.values()) / len(tg)
+        by_off = {}
+        for (gid, off), g in tg.items():
+            by_off.setdefault(off, []).append((gid, g[pos][0]))
+        acc = {}
+        for (gid, off), g in tg.items():
+            others = [p for x, p in by_off[off] if x != gid]
+            base = (sum(others) + league * VPOS_PRIOR_OFF) / (len(others) + VPOS_PRIOR_OFF)
+            a = acc.setdefault(g["def"], [0.0, 0.0, 0.0, 0])
+            a[0] += g[pos][0] - base
+            a[1] += g[pos][0]
+            a[2] += g[pos][1]
+            a[3] += 1
+        def blend(d, a):
+            lp = (last or {}).get(d, {}).get(pos)
+            if lp is not None:
+                return (a[0] + lp[3] * VPOS_PRIOR_LAST) / (a[3] + VPOS_PRIOR_LAST)
+            return a[0] / (a[3] + VPOS_PRIOR_DEF)
+        rated = {d: (blend(d, a), a) for d, a in acc.items()}
+        order = sorted(rated, key=lambda d: (rated[d][0], rated[d][1][1] / rated[d][1][3]))
+        for i, d in enumerate(order):
+            adj, a = rated[d]
+            out.setdefault(d, {})[pos] = [i + 1, round(a[2] / a[3], 1), round(a[1] / a[3], 1), round(adj, 1), a[3]]
+    return {"thru": max(int(r["week"]) for r in prior), "t": dict(sorted(out.items()))}
+
+
 def kick_ms(iso):
     if len(iso) == 10:
         iso += "T12:00:00Z"
@@ -148,6 +220,7 @@ def main():
     rows = [r for r in csv.DictReader(open(src, encoding="utf-8")) if r["season_type"] == "REG"]
     for r in rows:
         r["team"] = TEAM_FIX.get(r["team"], r["team"])
+        r["opponent_team"] = TEAM_FIX.get(r["opponent_team"], r["opponent_team"])
 
     page = open(path, encoding="utf-8").read()
     weeks = read_weeks(page)
@@ -211,6 +284,32 @@ def main():
         block = block[:first_nl] + "\nFP:" + json.dumps(fp, ensure_ascii=False, separators=(",", ":")) + "," + block[first_nl:]
         page = page[:s0] + block + page[s1:]
         report.append(f"Week {n}: {done} game(s) scored, {len(fp)} starters" + (", lineups built from who played" if made_lineups else ""))
+    # defense vs position for every week, the preview week included (it only uses earlier weeks)
+    last = None
+    try:
+        prev = os.path.join(tempfile.gettempdir(), "stats_player_week_2025.csv")
+        if not os.path.exists(prev):
+            subprocess.run(["curl", "-sSfL", "--max-time", "180", "-o", prev, PREV_URL], check=True)
+        prows = [r for r in csv.DictReader(open(prev, encoding="utf-8")) if r["season_type"] == "REG"]
+        for r in prows:
+            r["team"] = TEAM_FIX.get(r["team"], r["team"])
+            r["opponent_team"] = TEAM_FIX.get(r["opponent_team"], r["opponent_team"])
+        global VPOS_PRIOR_DEF
+        keep, VPOS_PRIOR_DEF = VPOS_PRIOR_DEF, 0.0  # last season's own rating, unshrunk
+        last = vpos_for_week(prows, 99)["t"]
+        VPOS_PRIOR_DEF = keep
+    except Exception as e:  # carry on without the prior
+        report.append(f"Defense vs position: no 2025 prior ({e}); using this season only")
+    vrep = []
+    for n in sorted(weeks, key=int):
+        v = vpos_for_week(rows, int(n), last)
+        if not v:
+            continue
+        s0, s1 = week_block(page, int(n))
+        page = page[:s0] + set_line(page[s0:s1], "VPOS", v) + page[s1:]
+        vrep.append(f"{n} (thru Wk {v['thru']})")
+    if vrep:
+        report.append("Defense vs position: weeks " + ", ".join(vrep))
     open(path, "w", encoding="utf-8").write(page)
     print("\n".join(report) or "No finished games with stats yet.")
 
