@@ -1026,7 +1026,7 @@ function mobileSides(a,h,ps){
     // O-line status on the left, a small "Fpts" label over the fantasy-points column on the right
     const olTxt=W.backfill?"":`<span class="side-ol">O-line: ${olCell(t)}</span>`,fph=hasFp()?`<span class="fph">Fpts</span>`:"";
     const ol=olTxt||fph?`<div class="side-sub">${olTxt}${fph}</div>`:"";
-    out+=`<div class="side"><div class="side-h"><h4>${TEAMS[t]}${imp!=null?`<span class="ipill${impTier(t)==="s"?" hot":""}">${imp.toFixed(1)} pts</span>`:""}${fp?`<span class="ipill">${fp}</span>`:""}</h4><span class="vs">${rl}</span></div>${ol}${rows.map(p=>mRowHtml(p,false)).join("")}</div>`;
+    out+=`<div class="side"><div class="side-h"><h4>${TEAMS[t]}</h4><span class="vs">${rl}</span></div>${ol}${rows.map(p=>mRowHtml(p,false)).join("")}</div>`;
   }
   return out||`<div class="side"><p class="mempty">No starters at this position in this game</p></div>`;
 }
