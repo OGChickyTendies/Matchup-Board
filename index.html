@@ -215,11 +215,14 @@ h2{margin:16px 0 0;font-family:var(--display);font-size:30px;font-weight:800;tex
 .side+.side{border-top:1px dashed var(--line-2)}
 .side-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 10px;margin-bottom:6px}
 .side-h h4{margin:0;font-family:var(--display);font-weight:800;font-size:18px;letter-spacing:.02em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
-.side-h .vs{font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:0}
-.side-h .vs .vseg{white-space:nowrap}
+.side-h .vs{display:flex;flex-direction:column;gap:2px;width:100%;font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:0}
+.side-h .vs .vline{white-space:nowrap;font-size:min(11px,2.55vw)}
 .ipill{font-family:var(--mono);font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-3);color:var(--ink);text-transform:none;letter-spacing:0}
 .ipill.hot{background:var(--soft-tint);color:var(--soft-ink)}
 .side-ol{margin:0 0 4px;font-size:12px;color:var(--ink-4)}
+.side-sub{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 0 4px}
+.side-sub .side-ol{margin:0;min-width:0}
+.fph{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-4)}
 .mrow{display:grid;grid-template-columns:40px minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
 .mrow:first-of-type{border-top:0}
 .mname{min-width:0}
@@ -985,18 +988,19 @@ function mobileSides(a,h,ps){
   for(const t of [a,h]){
     const rows=ps.filter(p=>p.team===t);if(!rows.length)continue;
     const o=t===a?h:a,imp=IMP[t],fp=sideFp(t),rl=rankLine(o);
-    const ol=W.backfill?"":`<p class="side-ol">O-line: ${olCell(t)}</p>`;
-    out+=`<div class="side"><div class="side-h"><h4>${TEAMS[t]}${imp!=null?`<span class="ipill${impTier(t)==="s"?" hot":""}">${imp.toFixed(1)} pts</span>`:""}${fp?`<span class="ipill">${fp}</span>`:""}</h4><span class="vs">vs ${o}${rl?" · "+rl:""}</span></div>${ol}${rows.map(p=>mRowHtml(p,false)).join("")}</div>`;
+    // O-line status on the left, a small "Fpts" label over the fantasy-points column on the right
+    const olTxt=W.backfill?"":`<span class="side-ol">O-line: ${olCell(t)}</span>`,fph=hasFp()?`<span class="fph">Fpts</span>`:"";
+    const ol=olTxt||fph?`<div class="side-sub">${olTxt}${fph}</div>`:"";
+    out+=`<div class="side"><div class="side-h"><h4>${TEAMS[t]}${imp!=null?`<span class="ipill${impTier(t)==="s"?" hot":""}">${imp.toFixed(1)} pts</span>`:""}${fp?`<span class="ipill">${fp}</span>`:""}</h4><span class="vs">${rl}</span></div>${ol}${rows.map(p=>mRowHtml(p,false)).join("")}</div>`;
   }
   return out||`<div class="side"><p class="mempty">No starters at this position in this game</p></div>`;
 }
 function rankLine(o){
-  // the opposing defense in one line: run and pass ranks with yards allowed, then its pass rush (sacks)
-  const d=D[o];if(!d||d.r_rypg==null)return"";const y=metric()==="ypg",seg=t=>`<span class="vseg">${t}</span>`;
-  const run=y?`run ${ord(d.r_rypg)} ${d.rypg.toFixed(1)}/g`:`run ${ord(d.r_ypc)} ${d.ypc.toFixed(1)} YPC`;
-  const pass=y?`pass ${ord(d.r_pypg)} ${d.pypg.toFixed(1)}/g`:`pass ${ord(d.r_ypa)} ${d.ypa.toFixed(1)} Y/A`;
-  const sk=y?(d.skpg!=null?`sacks ${ord(d.r_skpg)} ${d.skpg.toFixed(1)}/g`:""):(d.skpd!=null?`sack rate ${ord(d.r_skpd)} ${(100*d.skpd).toFixed(1)}%`:"");
-  return [run,pass,sk].filter(Boolean).map((t,i)=>seg((i?"· ":"")+t)).join(" "); // the dot travels with the item after it when the line wraps
+  // the opposing defense: "vs DAL" on the first line, then its run and pass ranks with yards allowed and its sacks on the second
+  const d=D[o];if(!d||d.r_rypg==null)return `<span>vs ${o}</span>`;const y=metric()==="ypg";
+  const parts=y?[`run ${ord(d.r_rypg)} ${Math.round(d.rypg)} yds`,`pass ${ord(d.r_pypg)} ${Math.round(d.pypg)} yds`,d.skpg!=null?`sacks ${ord(d.r_skpg)} ${d.skpg.toFixed(1)}`:""]
+               :[`run ${ord(d.r_ypc)} ${d.ypc.toFixed(1)}`,`pass ${ord(d.r_ypa)} ${d.ypa.toFixed(1)}`,d.skpd!=null?`sack% ${ord(d.r_skpd)} ${(100*d.skpd).toFixed(1)}`:""];
+  return `<span>vs ${o} · ${y?"allowed per game":"YPC, Y/A, sack rate"}</span><span class="vline">${parts.filter(Boolean).join(" · ")}</span>`;
 }
 function renderGames(all){
   const box=document.getElementById("games");box.textContent="";
