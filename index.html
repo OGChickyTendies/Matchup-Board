@@ -969,11 +969,10 @@ function gameCard(a,h,iso,note,rowsHtml){
 }
 function tableHead(){
   const per=metric()==="ypg"?"Yds / g":"Per play";
-  return `<thead><tr><th>Pos</th><th>Player</th><th>Team</th><th>Faces</th><th>Defense rank</th><th class="r">${per}</th>${W.backfill?"":"<th>O-line</th>"}${hasFp()?'<th class="r">Fpts</th>':""}<th>Pts</th></tr></thead>`;
+  return `<thead><tr><th>Pos</th><th>Player</th><th>Team</th><th>Faces</th><th>Defense rank</th><th class="r">${per}</th>${W.backfill?"":"<th>O-line</th>"}${hasFp()?'<th class="r">Fpts</th>':""}</tr></thead>`;
 }
 function rowHtml(p){
-  const imp=p.imp;
-  return `<tr><td><span class="pos" style="--c:${POSC[p.pos]}">${p.pos}</span></td><td>${nameCell(p)}</td><td>${p.team}</td><td>${p.opp}<span class="unit">${p.side}</span></td><td>${rankCell(p)}</td><td class="r num">${p.val||"–"}${p.sk?`<span class="unit">${p.sk}</span>`:""}</td>${W.backfill?"":`<td>${olCell(p.team)}</td>`}${hasFp()?`<td class="r">${fpCell(p)}</td>`:""}<td><span class="pts${imp!=null&&impTier(p.team)==="s"?" hot":""}">${imp!=null?imp.toFixed(1):"–"}</span></td></tr>`;
+  return `<tr><td><span class="pos" style="--c:${POSC[p.pos]}">${p.pos}</span></td><td>${nameCell(p)}</td><td>${p.team}</td><td>${p.opp}<span class="unit">${p.side}</span></td><td>${rankCell(p)}</td><td class="r num">${p.val||"–"}${p.sk?`<span class="unit">${p.sk}</span>`:""}</td>${W.backfill?"":`<td>${olCell(p.team)}</td>`}${hasFp()?`<td class="r">${fpCell(p)}</td>`:""}</tr>`;
 }
 function mRowHtml(p,withTeam){
   const r=p.rank==null?`<span class="chip none">—</span>`:(()=>{const t=tier(p.rank),u=dinjSplit(p.opp)[p.pos==="RB"?"front":"sec"].filter(x=>x[2]==="O"||x[2]==="D");return `<span class="chip ${t}" title="${esc((p.sk?`${TEAMS[p.opp]} vs QBs: ${p.val} ${p.unit}, ${p.sk} (${p.why}); QB rank ${ord(p.rank)} of 32`:`${TEAMS[p.opp]} ${p.side}: ${p.val} ${p.unit}, ranked ${ord(p.rank)} of 32`)+(u.length?`. Missing or doubtful: ${u.map(x=>x[1]+" "+x[0]).join(", ")}`:""))}">${p.rank}${u.length?'<span class="hurt">+</span>':""}</span>`})();
@@ -1005,7 +1004,7 @@ function rankLine(o){
 function renderGames(all){
   const box=document.getElementById("games");box.textContent="";
   let shown=0;
-  const cols=6+(W.backfill?0:1)+(hasFp()?1:0)+1;
+  const cols=6+(W.backfill?0:1)+(hasFp()?1:0);
   for(const [a,h,iso,note] of GAMES){
     const inGame=all.filter(p=>p.team===a||p.team===h);
     const q=state.q.trim().toLowerCase();
