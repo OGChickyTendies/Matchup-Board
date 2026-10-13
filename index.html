@@ -1005,9 +1005,11 @@ function rowHtml(p){
 function mRowHtml(p,withTeam){
   const r=p.rank==null?`<span class="chip none">—</span>`:(()=>{const t=tier(p.rank),u=dinjSplit(p.opp)[p.pos==="RB"?"front":"sec"].filter(x=>x[2]==="O"||x[2]==="D");return `<span class="chip ${t}" title="${esc((p.vp?p.vp:p.sk?`${TEAMS[p.opp]} vs QBs: ${p.val} ${p.unit}, ${p.sk} (${p.why}); QB rank ${ord(p.rank)} of 32`:`${TEAMS[p.opp]} ${p.side}: ${p.val} ${p.unit}, ranked ${ord(p.rank)} of 32`)+(u.length?`. Missing or doubtful: ${u.map(x=>x[1]+" "+x[0]).join(", ")}`:""))}">${p.rank}${u.length?'<span class="hurt">+</span>':""}</span>`})();
   // by-game rows stay on one line: the defense's yards allowed sit in the side header (rankLine), not under each player
-  const sub=withTeam?`${p.team} ${p.home?"vs":"@"} ${p.opp} · ${p.side}`+(p.val?` · ${p.val} ${p.unit}`:"")+(p.sk?` · ${p.sk}`:"")+(p.status?` · ${esc(p.status)}`:""):"";
-  const right=hasFp()?fpCell(p):"";
-  const imp=withTeam&&p.imp!=null?`<small>${p.imp.toFixed(1)} pts</small>`:"";
+  // All starters list: the right column is labeled (fpts once games are final, otherwise the team's implied total)
+  const fpOn=hasFp(),impTxt=p.imp!=null?`${p.imp.toFixed(1)} team pts`:"";
+  const sub=withTeam?`${p.team} ${p.home?"vs":"@"} ${p.opp} · ${p.side}`+(p.val?` · ${p.val} ${p.unit}`:"")+(p.sk?` · ${p.sk}`:"")+(fpOn&&impTxt?` · ${impTxt}`:"")+(p.status?` · ${esc(p.status)}`:""):"";
+  const right=fpOn?fpCell(p):withTeam&&p.imp!=null?`<span class="pts${impTier(p.team)==="s"?" hot":""}">${p.imp.toFixed(1)}</span>`:"";
+  const imp=withTeam?(fpOn?`<small>fpts</small>`:p.imp!=null?`<small>team pts</small>`:""):"";
   return `<div class="mrow"><span class="pos" style="--c:${POSC[p.pos]}">${p.pos}</span><div class="mname">${nameCell(p)}${sub?`<small>${sub}</small>`:""}</div>${r}<div class="mright">${right}${imp}</div></div>`;
 }
 function mobileSides(a,h,ps){
@@ -1065,7 +1067,7 @@ function renderGames(all){
 let listSort={key:"rank",dir:-1};
 function renderList(all){
   const t=document.getElementById("plist");
-  const cols=[["pos","Pos"],["name","Player"],["team","Team"],["opp","Faces"],["rank","Defense rank"],["val",metric()==="pos"?"Allowed / g":metric()==="ypg"?"Yds / g":"Per play",1],["imp","Pts",1],...(hasFp()?[["fp","Fpts",1]]:[]),["status","Status"],["wx","Weather"],["kick","Kickoff"]];
+  const cols=[["pos","Pos"],["name","Player"],["team","Team"],["opp","Faces"],["rank","Defense rank"],["val",metric()==="pos"?"Allowed / g":metric()==="ypg"?"Yds / g":"Per play",1],["imp","Team pts",1],...(hasFp()?[["fp","Fpts",1]]:[]),["status","Status"],["wx","Weather"],["kick","Kickoff"]];
   t.tHead.innerHTML="<tr>"+cols.map(([k,l,n])=>`<th class="${n?"r":""}"><button type="button" data-k="${k}" ${listSort.key===k?`data-dir="${listSort.dir>0?"▲":"▼"}"`:""}>${l}</button></th>`).join("")+"</tr>";
   const rows=all.filter(passes).sort((x,y)=>{const k=listSort.key;let a=x[k],b=y[k];if(k==="val"){a=+a;b=+b}if(k==="fp"){a=x.fp?pts(x.fp):-1;b=y.fp?pts(y.fp):-1}if(k==="rank"){a=a??-1;b=b??-1}return (a>b?1:a<b?-1:0)*listSort.dir||x.name.localeCompare(y.name)});
   const tb=t.tBodies[0];
