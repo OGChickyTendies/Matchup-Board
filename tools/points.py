@@ -17,7 +17,9 @@ Backfilled weeks (backfill:true) with an empty STARTERS get a lineup built from 
 actually played: the QB with the most pass attempts, the RB with the most carries,
 the three WRs and the TE with the most targets.
 
-It also writes each week's `VPOS:{...}` line: how every defense has done against each
+For finished games it also writes `ALT:{...}`: listed starter -> teammates at his position who
+outscored him (PPR), so the page can say "Outscored by ..." when the depth chart picked the
+wrong player. It also writes each week's `VPOS:{...}` line: how every defense has done against each
 position (QB, RB, WR, TE) in the games played before that week. See vpos_for_week().
 
 Needs node (to read the WEEKS literal) and curl (the download goes through the proxy).
@@ -124,6 +126,7 @@ def week_block(page, n):
     return m.start() + 1, nxt.start()
 
 
+ALT_MIN = 5.0  # flag a passed-over teammate only when he outscored the listed starter by this many PPR points
 VPOS_POS = {"QB": "QB", "RB": "RB", "FB": "RB", "WR": "WR", "TE": "TE"}
 VPOS_PRIOR_OFF = 1.0   # offense baseline: its other games plus this many league-average games
 VPOS_PRIOR_LAST = 6.0  # defense rating starts from last season's rating, counted as this many games
@@ -243,6 +246,7 @@ def main():
             made_lineups = bool(starters)
         fp = dict(W.get("FP") or {})  # keep entries already there for games not in this stats file yet
         box = dict(W.get("BOX") or {})
+        alt = dict(W.get("ALT") or {})
         done = 0
         for g in W["GAMES"]:
             a, h, iso = g[0], g[1], g[2]
@@ -269,6 +273,18 @@ def main():
                     else:
                         fp[name] = [round(num(r["fantasy_points"]), 2), round(num(r["fantasy_points_ppr"]), 2), stat_line(r)]
                         box[name] = box_row(r)
+                # teammates the depth chart passed over who outscored a listed starter at the same position
+                listed = {"QB": [s[0]], "RB": [s[1]], "WR": list(s[2]), "TE": [s[3]]}
+                lnorm = {norm(x) for x in [s[0], s[1], *s[2], s[3]]}
+                for pos, names in listed.items():
+                    for nm in names:
+                        alt.pop(nm, None)
+                    low = min(names, key=lambda x: fp.get(x, [0, 0])[1])
+                    lowp = fp.get(low, [0, 0])[1]
+                    better = sorted((r for r in trows if VPOS_POS.get(r["position"]) == pos and norm(r["player_display_name"]) not in lnorm
+                                     and num(r["fantasy_points_ppr"]) >= lowp + ALT_MIN), key=lambda r: -num(r["fantasy_points_ppr"]))[:2]
+                    if better:
+                        alt[low] = [[r["player_display_name"], round(num(r["fantasy_points"]), 2), round(num(r["fantasy_points_ppr"]), 2)] for r in better]
         if not fp and not made_lineups:
             continue
         s0, s1 = week_block(page, int(n))
@@ -276,6 +292,8 @@ def main():
         block = re.sub(r"\nFP:\{[^\n]*\},(?=\n)", "", block)
         if box:
             block = set_line(block, "BOX", box)
+        if alt:
+            block = set_line(block, "ALT", alt)
         if made_lineups:
             lit = "STARTERS:{\n" + ",\n".join(f"{t}:{json.dumps(v, ensure_ascii=False)}" for t, v in starters.items()) + "},"
             assert block.count("STARTERS:{},") == 1, f"week {n}: STARTERS literal not found"
