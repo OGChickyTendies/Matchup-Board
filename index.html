@@ -319,6 +319,7 @@ footer p{margin:0;max-width:110ch}
     </div>
     <input type="search" id="q" placeholder="Search player or team" aria-label="Search player or team">
     <label class="field" for="metric">Rank by <select id="metric"><option value="pos">Points allowed to position</option><option value="ypg">Team yards allowed / game</option><option value="eff">Team yards / play (YPC, Y/A)</option></select></label>
+    <label class="field" for="gsort" id="gsortField">Sort games <select id="gsort"><option value="kick">By kickoff</option><option value="wx">Worst weather first</option></select></label>
     <label class="field" for="scoring" id="scoringField" hidden>Fantasy <select id="scoring"><option value="ppr">PPR</option><option value="half">Half PPR</option><option value="std">Standard</option></select></label>
   </div>
 
@@ -1004,9 +1005,9 @@ function loadWeek(n){
   fillJump();
 }
 
-let state={view:"games",pos:"ALL",metric:"pos",scoring:"ppr",q:""};
+let state={view:"games",pos:"ALL",metric:"pos",scoring:"ppr",gsort:"kick",q:""};
 try{const s=JSON.parse(localStorage.getItem("smb-state")||"{}");if(!s.mv)delete s.metric;Object.assign(state,s)}catch(e){}
-function save(){try{localStorage.setItem("smb-state",JSON.stringify({view:state.view,pos:state.pos,metric:state.metric,scoring:state.scoring,mv:2}))}catch(e){}}
+function save(){try{localStorage.setItem("smb-state",JSON.stringify({view:state.view,pos:state.pos,metric:state.metric,scoring:state.scoring,gsort:state.gsort,mv:2}))}catch(e){}}
 
 const tz="America/Denver";
 const fmtKick=iso=>iso.length===10?new Date(iso+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",weekday:"short",month:"short",day:"numeric"}):new Date(iso).toLocaleString("en-US",{timeZone:tz,weekday:"short",hour:"numeric",minute:"2-digit"}).replace(" "," · ")+" MT";
@@ -1181,11 +1182,28 @@ function rankLine(o){
                 d.skpd!=null?row("Sack rate",d.r_skpd,`${(100*d.skpd).toFixed(1)}%`):""];
   return `<span>vs ${o} · ${y?"allowed per game":"per play"}</span>${rows.join("")}`;
 }
+/* games order: by kickoff, or worst weather first */
+// weather score: the forecast's impact level (0 fine, 1 watch, 2 alert) first, then rain/snow chance and wind strength
+// from the forecast text; domes and closed roofs sort last. Ties keep kickoff order.
+function wxScore(h){
+  const w=WX[h];if(!w)return -1;
+  if(/dome|indoors/i.test(w[0]+" "+w[1])||(w[0]==="Roof"&&!/open/i.test(w[1])))return 0;
+  const t=w[1].toLowerCase(),pct=(t.match(/(\d+)%\s*(?:chance of\s*)?(?:light\s*|heavy\s*)?(?:rain|showers|storms?|snow|thunder)/)||[])[1];
+  let sc=w[2]*1000+(pct?+pct:/rain|showers|storm/.test(t)?40:0)*2;
+  if(/snow/.test(t))sc+=150;
+  sc+=/strong|gust|high wind/.test(t)?60:/moderate/.test(t)?25:/light/.test(t)?5:0;
+  return sc;
+}
+function sortedGames(){
+  const g=[...GAMES];
+  if(state.gsort==="wx"&&Object.keys(WX).length)return g.map((x,i)=>[x,i]).sort((x,y)=>wxScore(y[0][1])-wxScore(x[0][1])||x[1]-y[1]).map(x=>x[0]);
+  return g;
+}
 function renderGames(all){
   const box=document.getElementById("games");box.textContent="";
   let shown=0;
   const cols=6+(W.backfill?0:1)+(hasFp()?1:0);
-  for(const [a,h,iso,note] of GAMES){
+  for(const [a,h,iso,note] of sortedGames()){
     const inGame=all.filter(p=>p.team===a||p.team===h);
     const q=state.q.trim().toLowerCase();
     if(q&&!inGame.some(matchesQ)&&!(a+" "+h+" "+TEAMS[a]+" "+TEAMS[h]+" "+CITY[a]+" "+CITY[h]).toLowerCase().includes(q))continue;
@@ -1295,11 +1313,13 @@ function render(){
   document.querySelectorAll("[data-view]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.view===state.view));
   document.querySelectorAll("[data-pos]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.pos===state.pos));
   document.getElementById("metric").value=metric();
+  const gs=document.getElementById("gsort");gs.value=state.gsort;document.getElementById("gsortField").style.display=state.view!=="games"||!Object.keys(WX).length?"none":"";
   document.getElementById("scoring").value=state.scoring;document.getElementById("scoringField").hidden=!hasFp();
   if(state.view==="games")renderGames(all);else renderList(all);
 }
 document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{state.view=b.dataset.view;save();render()});
 document.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{state.pos=b.dataset.pos;save();render()});
+document.getElementById("gsort").onchange=e=>{state.gsort=e.target.value;save();render()};
 document.getElementById("metric").onchange=e=>{state.metric=e.target.value;save();render()};
 document.getElementById("scoring").onchange=e=>{state.scoring=e.target.value;save();render()};
 document.getElementById("q").oninput=e=>{state.q=e.target.value;render()};
