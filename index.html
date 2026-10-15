@@ -271,9 +271,10 @@ h2{margin:16px 0 0;font-family:var(--display);font-size:30px;font-weight:800;tex
 .totop:hover{background:var(--brand);border-color:var(--brand)}
 @media (prefers-reduced-motion:reduce){.totop.show{animation:none}}
 @media (max-width:520px){.totop{width:36px;height:36px;border-radius:10px}.totop svg{width:18px;height:18px}}
-.sharebtn{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);cursor:pointer;padding:0}
+.sharebtn{display:inline-flex;align-items:center;gap:7px;margin-top:14px;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer}
+.sharebtn svg{width:16px;height:16px}
 .sharebtn:hover{border-color:var(--brand);color:var(--brand)}
-@media (max-width:520px){.sharebtn{width:34px;height:34px;border-radius:10px}.sharebtn svg{width:17px;height:17px}#jump{width:92px;font-size:14px}.brand{font-size:clamp(15px,4.4vw,25px)}.brand svg{width:26px;height:26px}.toast span{white-space:nowrap}}
+@media (max-width:520px){.toast span{white-space:nowrap}}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;max-width:calc(100vw - 32px);padding:10px 14px;border-radius:12px;background:var(--brand-deep);color:var(--on-brand);font-size:14px;box-shadow:var(--shadow);display:flex;gap:10px;align-items:center}
 .toast input{all:unset;min-width:0;width:230px;max-width:60vw;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.14);font-family:var(--mono);font-size:12px}
 footer{border-top:1px solid var(--line);padding-block:14px 32px;font-size:12px;color:var(--ink-4)}
@@ -294,7 +295,6 @@ footer p{margin:0;max-width:110ch}
     <div class="meta">
       <label for="jump" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Jump to Game</label>
       <select id="jump"><option value="">Jump to Game</option></select>
-      <button class="sharebtn" id="shareBtn" type="button" aria-label="Share this page" title="Share"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></button>
       <button class="totop" id="toTop" type="button" aria-label="Back to top" title="Back to top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </div>
   </div>
@@ -306,6 +306,7 @@ footer p{margin:0;max-width:110ch}
       <p class="eyebrow" id="eyebrow">NFL · 2026</p>
       <h1>Every starter. <span>Every soft spot.</span></h1>
       <p class="sub">Every projected offensive starter, the defense he faces, and how that defense has held up against his position: the PPR fantasy points it allows to QBs, RBs, WRs or TEs, adjusted for the offenses it has played and blended with last season while the sample is small. Touchdowns allowed count too: rushing TDs for running backs, passing TDs for everyone else. Ranks run 1–32, where 32 is the softest matchup. Switch “Rank by” to grade on team yards allowed instead.</p>
+      <button class="sharebtn" id="shareBtn" type="button" aria-label="Share Matchup Sheet"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>Share</button>
     </div>
     <div class="fresh" id="fresh" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><span id="freshText">Checking for newer injury and weather news…</span><button id="refreshBtn" type="button" hidden>Refresh now</button></div>
   </section>
@@ -1337,7 +1338,7 @@ function renderWeeks(){
 document.getElementById("weekSel").onchange=e=>{loadWeek(+e.target.value);render();renderDef()};
 function fillJump(){
   const sel=document.getElementById("jump");
-  sel.innerHTML=`<option value="">${matchMedia("(max-width:520px)").matches?"Games":"Jump to Game"}</option>`+[...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2])).map(([a,h,iso])=>{const s=SCORES[h];return `<option value="${a}-${h}">${a} @ ${h} · ${s?`Final ${a} ${s[0]}, ${h} ${s[1]}`:fmtKick(iso)}</option>`}).join("");
+  sel.innerHTML='<option value="">Jump to Game</option>'+[...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2])).map(([a,h,iso])=>{const s=SCORES[h];return `<option value="${a}-${h}">${a} @ ${h} · ${s?`Final ${a} ${s[0]}, ${h} ${s[1]}`:fmtKick(iso)}</option>`}).join("");
 }
 function jumpTo(id){
   // the game must be on screen: switch to By game and clear filters that would hide it
