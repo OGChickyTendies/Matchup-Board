@@ -156,7 +156,8 @@ def vpos_for_week(rows, n, last=None):
     without `last`, shrunk toward zero as if it had two average games. Rank 1 = toughest
     (allows the least relative to expectation), 32 = softest. Returns None before any games.
     Output per defense and position: [rank, yards/g allowed, PPR pts/g allowed, adjusted pts/g, games];
-    the RB entry adds [RB rushing TDs allowed/g, PPR-only rank, rushing-TD rank] (see rb_rushing_tds).
+    each entry adds [TDs allowed/g (RB: rushing TDs by RBs; QB/WR/TE: passing TDs), PPR-only rank,
+    TD rank] and its rank blends the two (see td_blend).
     Receivers are also rated by role, WR1 / WR2 / WR3: in each game the offense's receivers are
     ordered by their season targets coming into that game (in a team's first game, by that game's
     targets), so a defense that shuts down No. 1 receivers but leaks to slot/No. 3 options shows it.
@@ -167,13 +168,14 @@ def vpos_for_week(rows, n, last=None):
     tg = {}  # (game_id, offense) -> {"def": team, pos: [pts, yds]}
     for r in prior:
         key = (r["game_id"], r["team"])
-        g = tg.setdefault(key, {"def": r["opponent_team"], "rb_rtd": 0.0, **{p: [0.0, 0.0] for p in VPOS_KEYS}})
+        g = tg.setdefault(key, {"def": r["opponent_team"], "rb_rtd": 0.0, "ptd": 0.0, **{p: [0.0, 0.0] for p in VPOS_KEYS}})
         pos = VPOS_POS.get(r["position"])
         if pos:
             g[pos][0] += num(r.get("fantasy_points_ppr"))
             g[pos][1] += vpos_yards(r, pos)
         if pos == "RB":
             g["rb_rtd"] += num(r.get("rushing_tds"))
+        g["ptd"] += num(r.get("passing_tds"))
     # receiver roles: order each team's WRs in each game by season targets before that game
     season_tg = {}  # (team, week) -> {player: targets in earlier weeks}
     wrs = {}
@@ -217,39 +219,42 @@ def vpos_for_week(rows, n, last=None):
         for i, d in enumerate(order):
             adj, a = rated[d]
             out.setdefault(d, {})[pos] = [i + 1, round(a[2] / a[3], 1), round(a[1] / a[3], 1), round(adj, 1), a[3]]
-    rb_rushing_tds(tg, out)
+    td_blend(tg, out, "rb_rtd", ("RB",), RB_TD_WEIGHT)
+    td_blend(tg, out, "ptd", ("QB", "WR", "TE", "WR1", "WR2", "WR3"), PASS_TD_WEIGHT)
     return {"thru": max(int(r["week"]) for r in prior), "t": dict(sorted(out.items()))}
 
 
-RB_TD_WEIGHT = 1 / 3  # share of the RB rank that comes from rushing TDs allowed to RBs
-# Backtest on 2026 Weeks 2-5 (Spearman of the pre-week RB rank with RB PPR allowed that week):
-# PPR rating alone 0.09, blended 2:1 with the rushing-TD rank 0.11 (small sample; TDs are noisy).
+RB_TD_WEIGHT = 1 / 3    # share of the RB rank that comes from rushing TDs allowed to RBs
+PASS_TD_WEIGHT = 1 / 4  # share of the QB / WR / TE ranks that comes from passing TDs allowed
+# Backtest on 2026 Weeks 2-5 (Spearman of the pre-week rank with PPR allowed to the position that week):
+# RB 0.09 -> 0.11 with rushing TDs at 1/3. Passing TDs at 1/4: QB 0.15 -> 0.16, WR 0.12 -> 0.13,
+# TE 0.30 -> 0.26 (small samples; TDs are noisy and already count in PPR, so their weight stays light).
 
 
-def rb_rushing_tds(tg, out):
-    """Fold rushing TDs allowed to running backs into each defense's RB rank.
+def td_blend(tg, out, field, keys, weight):
+    """Fold touchdowns allowed into each defense's rank for the given positions.
 
-    The PPR rating already counts touchdowns at 6 points, but TDs allowed tracked the
-    next week's RB scoring better than the rest of the rating, so the RB rank is a 2:1
-    blend of the PPR rank and a rushing-TD rank (fewest RB rushing TDs per game = 1,
-    ties broken by RB scrimmage yards allowed), re-ranked 1-32. The RB entry gains
-    [5] RB rushing TDs allowed per game, [6] the PPR-only rank and [7] the TD rank.
+    The PPR rating already counts touchdowns, but the rank adds a separate touchdown rank:
+    `field` per game (RB rushing TDs, or passing TDs for QB/WR/TE), fewest = 1, ties broken
+    by the yards allowed to the position. New rank = re-ranked (1 - weight) x PPR rank +
+    weight x TD rank. Each blended entry gains [5] TDs allowed per game, [6] the PPR-only
+    rank and [7] the TD rank.
     """
     td = {}
     for g in tg.values():
         t = td.setdefault(g["def"], [0.0, 0])
-        t[0] += g["rb_rtd"]
+        t[0] += g[field]
         t[1] += 1
-    rbs = {d: v["RB"] for d, v in out.items() if "RB" in v and d in td}
-    if not rbs:
-        return
-    tdpg = {d: td[d][0] / td[d][1] for d in rbs}
-    td_rank = {d: i + 1 for i, d in enumerate(sorted(rbs, key=lambda d: (tdpg[d], rbs[d][1])))}
-    w = RB_TD_WEIGHT
-    score = {d: (1 - w) * rbs[d][0] + w * td_rank[d] for d in rbs}
-    for i, d in enumerate(sorted(rbs, key=lambda d: (score[d], rbs[d][0]))):
-        e = rbs[d]
-        out[d]["RB"] = [i + 1, *e[1:5], round(tdpg[d], 2), e[0], td_rank[d]]
+    tdpg = {d: v[0] / v[1] for d, v in td.items()}
+    for key in keys:
+        ent = {d: v[key] for d, v in out.items() if key in v and d in tdpg}
+        if not ent:
+            continue
+        td_rank = {d: i + 1 for i, d in enumerate(sorted(ent, key=lambda d: (tdpg[d], ent[d][1])))}
+        score = {d: (1 - weight) * ent[d][0] + weight * td_rank[d] for d in ent}
+        for i, d in enumerate(sorted(ent, key=lambda d: (score[d], ent[d][0]))):
+            e = ent[d]
+            out[d][key] = [i + 1, *e[1:5], round(tdpg[d], 2), e[0], td_rank[d]]
 
 
 def wr_roles(rows, n, starters):
