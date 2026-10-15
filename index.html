@@ -1379,7 +1379,7 @@ const SITE_URL="https://matchup-board.netlify.app/";
     t.innerHTML=html;t.hidden=false;clearTimeout(toastTimer);if(ms)toastTimer=setTimeout(()=>t.hidden=true,ms);return t;
   }
   btn.onclick=async()=>{
-    const u=url(),data={title:"Matchup Sheet",text:`Matchup Sheet · NFL Week ${CURRENT_WEEK} starters, matchups, injuries and weather`,url:u};
+    const u=url(),data={url:u};
     if(navigator.share){try{await navigator.share(data);return}catch(e){if(e&&e.name==="AbortError")return}}
     try{await navigator.clipboard.writeText(u);toast("Link copied",2200);return}catch(e){}
     // no share sheet or clipboard here: show the link to copy by hand
