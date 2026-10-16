@@ -320,6 +320,7 @@ def main():
         fp = dict(W.get("FP") or {})  # keep entries already there for games not in this stats file yet
         box = dict(W.get("BOX") or {})
         alt = dict(W.get("ALT") or {})
+        oth = dict(W.get("OTH") or {})  # team -> non-starters at QB/RB/WR/TE who scored any fantasy points
         done = 0
         for g in W["GAMES"]:
             a, h, iso = g[0], g[1], g[2]
@@ -358,6 +359,14 @@ def main():
                                      and num(r["fantasy_points_ppr"]) >= lowp + ALT_MIN), key=lambda r: -num(r["fantasy_points_ppr"]))[:2]
                     if better:
                         alt[low] = [[r["player_display_name"], round(num(r["fantasy_points"]), 2), round(num(r["fantasy_points_ppr"]), 2)] for r in better]
+                others = [r for r in trows if VPOS_POS.get(r["position"]) and norm(r["player_display_name"]) not in lnorm
+                          and (num(r["fantasy_points"]) or num(r["fantasy_points_ppr"]))]
+                others.sort(key=lambda r: -num(r["fantasy_points_ppr"]))
+                if others:
+                    oth[t] = [[r["player_display_name"], VPOS_POS[r["position"]], round(num(r["fantasy_points"]), 2),
+                               round(num(r["fantasy_points_ppr"]), 2), stat_line(r)] for r in others]
+                else:
+                    oth.pop(t, None)
         if not fp and not made_lineups:
             continue
         s0, s1 = week_block(page, int(n))
@@ -367,6 +376,8 @@ def main():
             block = set_line(block, "BOX", box)
         if alt:
             block = set_line(block, "ALT", alt)
+        if oth:
+            block = set_line(block, "OTH", oth)
         if made_lineups:
             lit = "STARTERS:{\n" + ",\n".join(f"{t}:{json.dumps(v, ensure_ascii=False)}" for t, v in starters.items()) + "},"
             assert block.count("STARTERS:{},") == 1, f"week {n}: STARTERS literal not found"
