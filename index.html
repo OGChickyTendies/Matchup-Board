@@ -257,6 +257,10 @@ h2{margin:16px 0 0;font-family:var(--display);font-size:30px;font-weight:800;tex
   .team h3{font-size:21px}
 }
 @media (max-width:520px){
+  .seg{width:100%}
+  .seg button{flex:1 1 auto;padding:0 6px;font-size:14px;letter-spacing:.02em;white-space:nowrap}
+  @media (max-width:400px){.seg button{padding:0 4px;font-size:13px;letter-spacing:0}}
+  @media (max-width:350px){.seg button{padding:0 2px;font-size:11px}}
   .site-top .wrap{padding-block:8px;flex-wrap:nowrap;gap:8px}
   .brand{font-size:clamp(16px,5.2vw,25px);gap:7px;white-space:nowrap;flex:0 1 auto;min-width:0}
   .brand>span{overflow:hidden;text-overflow:ellipsis}
@@ -312,6 +316,14 @@ h2{margin:16px 0 0;font-family:var(--display);font-size:30px;font-weight:800;tex
 .tc-sub{margin:6px 0 0;padding:8px 0 2px;border-top:1px dashed var(--line-2);font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-4)}
 .tc-sub+.trow{border-top:0}
 .trow.other .tname{font-weight:500;color:var(--ink-2)}
+.orow{display:grid;grid-template-columns:44px minmax(0,1fr) auto 52px;gap:8px;align-items:start;padding:9px 0;border-top:1px solid var(--line)}
+.orow:first-child{border-top:0}
+.orow .pos,.orow .chip{margin-top:1px}
+.orow .who{min-width:0;font-size:13px;color:var(--ink-2);line-height:1.45}
+.orow .who span{display:flex;justify-content:space-between;gap:8px}
+.orow .who span i{font-style:normal;font-family:var(--mono);font-size:12px;color:var(--ink-4)}
+.orow .who.none{color:var(--ink-4)}
+.orow .fp{text-align:right;font-size:16px}
 .tc-empty{padding:18px 0;text-align:center;color:var(--ink-4);font-size:14px}
 footer{border-top:1px solid var(--line);padding-block:14px 32px;font-size:12px;color:var(--ink-4)}
 footer p{margin:0;max-width:110ch}
@@ -351,8 +363,9 @@ footer p{margin:0;max-width:110ch}
     <label class="field" for="weekSel">Week <select id="weekSel"></select></label>
     <div class="seg" role="group" aria-label="View">
       <button id="v-games" type="button" aria-pressed="true" data-view="games">By game</button>
-      <button id="v-list" type="button" aria-pressed="false" data-view="list">All starters</button>
+      <button id="v-list" type="button" aria-pressed="false" data-view="list">Starters</button>
       <button id="v-team" type="button" aria-pressed="false" data-view="team">By team</button>
+      <button id="v-opp" type="button" aria-pressed="false" data-view="opp">Vs Def</button>
     </div>
     <div class="pills" role="group" aria-label="Position" id="posSeg">
       <button class="pill" type="button" aria-pressed="true" data-pos="ALL">All</button>
@@ -383,6 +396,7 @@ footer p{margin:0;max-width:110ch}
 
   <p class="weeknote" id="weekNote" hidden></p>
   <section id="gamesView"><div class="games" id="games"></div></section>
+  <section id="oppView" hidden><div class="tbar"><span>Fantasy points each defense gave up, by position. Each card steps through its own weeks.</span><div class="tbar-r"><label class="field" for="osort">Sort defenses <select id="osort"><option value="az">A–Z</option><option value="most">Most allowed per game</option><option value="least">Fewest allowed per game</option></select></label><button type="button" class="sharebtn" id="oppReset">Reset all to Week <span id="oppResetWk"></span></button></div></div><div class="tgrid" id="ogrid"></div></section>
   <section id="teamView" hidden><div class="tbar"><span id="tbarNote">Each team steps through its own weeks.</span><div class="tbar-r"><label class="field" for="tsort">Sort teams <select id="tsort"><option value="az">A–Z</option><option value="ease">Easiest matchups first</option></select></label><button type="button" class="sharebtn" id="teamReset">Reset all to Week <span id="teamResetWk"></span></button></div></div><div class="tgrid" id="tgrid"></div></section>
   <section id="listView" hidden><div class="listcard"><div class="scroll desk-only"><table id="plist"><thead></thead><tbody></tbody></table></div>
     <div class="mobile-only"><div class="mbar"><label for="mSort">Sort by</label><select id="mSort"><option value="rank">Softest matchup</option><option value="fp">Fantasy points</option><option value="imp">Team total</option><option value="name">Name</option></select></div><div class="mlist" id="mlist"></div></div></div></section>
@@ -1066,9 +1080,9 @@ function loadWeek(n){
   fillJump();
 }
 
-let state={view:"games",pos:"ALL",metric:"pos",scoring:"ppr",gsort:"kick",tsort:"az",q:""};
+let state={view:"games",pos:"ALL",metric:"pos",scoring:"ppr",gsort:"kick",tsort:"az",osort:"az",q:""};
 try{const s=JSON.parse(localStorage.getItem("smb-state")||"{}");if(!s.mv)delete s.metric;Object.assign(state,s)}catch(e){}
-function save(){try{localStorage.setItem("smb-state",JSON.stringify({view:state.view,pos:state.pos,metric:state.metric,scoring:state.scoring,gsort:state.gsort,tsort:state.tsort,mv:2}))}catch(e){}}
+function save(){try{localStorage.setItem("smb-state",JSON.stringify({view:state.view,pos:state.pos,metric:state.metric,scoring:state.scoring,gsort:state.gsort,tsort:state.tsort,osort:state.osort,mv:2}))}catch(e){}}
 
 const tz="America/Denver";
 const fmtKick=iso=>iso.length===10?new Date(iso+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",weekday:"short",month:"short",day:"numeric"}):new Date(iso).toLocaleString("en-US",{timeZone:tz,weekday:"short",hour:"numeric",minute:"2-digit"}).replace(" "," · ")+" MT";
@@ -1412,6 +1426,72 @@ document.getElementById("tgrid").addEventListener("click",e=>{
   fresh.querySelector(`[data-week="${n}"]`).scrollIntoView({block:"nearest",inline:"nearest"});
 });
 
+/* ---------- vs defense ---------- */
+// One card per defense: for the week on the card, the fantasy points the offense it faced scored at each position
+// (starters plus everyone else who scored), with the defense's pre-week rank vs that position. Steps weeks like By team.
+let oppWeek={};
+function oppData(n,d){
+  const g=wkGame(n,d);if(!g)return null;
+  const off=g.opp,w=WEEKS[n],by={QB:[],RB:[],WR:[],TE:[]};
+  for(const [p,name] of wkList(n,off)){const f=wkFp(n,name);if(f&&(f[0]||f[1]))by[p].push([name,pts(f)])}
+  for(const x of ((w.OTH||{})[off]||[]))if(by[x[1]])by[x[1]].push([x[0],pts([x[2],x[3]])]);
+  for(const k in by)by[k].sort((a,b)=>b[1]-a[1]);
+  const final=!!wkScore(n,g.g)||Object.values(by).some(l=>l.length);
+  const tot=k=>by[k].reduce((a,x)=>a+x[1],0);
+  return {g,off,by,final,tot};
+}
+const oppPos=()=>["QB","RB","WR","TE"].filter(p=>state.pos==="ALL"||p===state.pos);
+function oppTotal(n,d){const o=oppData(n,d);return o&&o.final?oppPos().reduce((a,p)=>a+o.tot(p),0):null}
+function oppAvg(d){const v=weekNums().map(n=>oppTotal(n,d)).filter(x=>x!=null);return v.length?v.reduce((a,x)=>a+x,0)/v.length:null}
+function defaultOppWeek(d){const ns=weekNums().filter(n=>oppTotal(n,d)!=null);return ns.length?ns[ns.length-1]:CURRENT_WEEK}
+function oppChip(n,d,pos){
+  const v=WEEKS[n].VPOS&&WEEKS[n].VPOS.t[d]&&WEEKS[n].VPOS.t[d][pos];
+  if(!v)return `<span class="chip none" title="No defense data before this week">—</span>`;
+  return `<span class="chip ${tier(v[0])}" title="${esc(`${TEAMS[d]} vs ${pos}s going into Week ${n}: ranked ${ord(v[0])} of 32 (32 = softest), ${v[2].toFixed(1)} PPR pts/g allowed`)}">${v[0]}</span>`;
+}
+function oppCardHtml(d){
+  const ns=weekNums(),n=oppWeek[d]??=defaultOppWeek(d),o=oppData(n,d);
+  let sub=`Week ${n}`;
+  if(!o)sub+=" · <b>Bye</b>";
+  else{const s=wkScore(n,o.g.g),mine=s?(o.g.home?s[1]:s[0]):null,theirs=s?(o.g.home?s[0]:s[1]):null;
+    sub+=` · ${o.g.home?"vs":"@"} ${o.off}`+(s?` · <b>${mine>theirs?"W":mine<theirs?"L":"T"} ${mine}–${theirs}${s[2]?" "+s[2]:""}</b>`:` · ${fmtKick(o.g.g[2])}`)}
+  const strip=ns.map(k=>{const g=wkGame(k,d),tot=oppTotal(k,d);
+    return `<button type="button" data-opp="${d}" data-week="${k}" aria-pressed="${k===n}" class="${!g?"bye":tot==null?"none":""}" title="Week ${k}${!g?": bye":` ${g.home?"vs":"@"} ${teamFull(g.opp)}${tot!=null?` · ${tot.toFixed(1)} fpts allowed`:""}`}">W${k}<b>${!g?"BYE":g.opp}</b></button>`}).join("");
+  let body;
+  if(!o)body=`<p class="tc-empty">On bye in Week ${n}</p>`;
+  else body=oppPos().map(p=>{
+    const l=o.by[p],t=o.tot(p);
+    const who=l.length?l.map(([nm,v])=>`<span>${esc(nm)}<i>${v.toFixed(1)}</i></span>`).join(""):o.final?"Nobody scored":`${TEAMS[o.off]} ${p}s · after the game`;
+    return `<div class="orow"><span class="pos" style="--c:${POSC[p]}">${p}</span><div class="who${l.length?"":" none"}">${who}</div>${oppChip(n,d,p)}<span class="fp${!o.final?" lo":t>=30?" hi":""}">${o.final?t.toFixed(1):"–"}</span></div>`}).join("");
+  const tot=oppTotal(n,d),avg=oppAvg(d),i=ns.indexOf(n);
+  return `<article class="tcard" id="o-${d}"><div class="tc-head"><span class="crest">${d}</span><div><h3>${TEAMS[d]} D</h3><small>${sub}</small></div>
+    <div class="tc-nav"><button type="button" data-opp="${d}" data-step="-1" aria-label="${TEAMS[d]} defense: previous week" ${i<=0?"disabled":""}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><button type="button" data-opp="${d}" data-step="1" aria-label="${TEAMS[d]} defense: next week" ${i>=ns.length-1?"disabled":""}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></div></div>
+    <div class="tc-weeks" role="group" aria-label="${TEAMS[d]} defense weeks">${strip}</div>
+    <div class="tc-body">${body}</div>
+    <div class="tc-foot"><span>Allowed: <b>${tot!=null?tot.toFixed(1):"–"}</b></span><span>Season avg: <b>${avg!=null?avg.toFixed(1):"–"}</b></span></div></article>`;
+}
+function renderOpps(){
+  document.getElementById("oppResetWk").textContent=CURRENT_WEEK;
+  document.getElementById("osort").value=state.osort;
+  const q=state.q.trim().toLowerCase();
+  const avg=d=>oppAvg(d)??-1;
+  const order=state.osort==="most"?[...TEAM_ORDER].sort((a,b)=>avg(b)-avg(a)):state.osort==="least"?[...TEAM_ORDER].sort((a,b)=>(avg(a)<0?1e9:avg(a))-(avg(b)<0?1e9:avg(b))):TEAM_ORDER;
+  const list=order.filter(t=>!q||(t+" "+TEAMS[t]+" "+CITY[t]).toLowerCase().includes(q));
+  document.getElementById("ogrid").innerHTML=list.length?list.map(oppCardHtml).join(""):`<p class="weeknote">No teams match that search.</p>`;
+}
+document.getElementById("osort").onchange=e=>{state.osort=e.target.value;save();renderOpps()};
+document.getElementById("oppReset").onclick=()=>{for(const t in TEAMS)oppWeek[t]=CURRENT_WEEK;renderOpps()};
+document.getElementById("ogrid").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-opp]");if(!b)return;
+  const d=b.dataset.opp,ns=weekNums(),cur=oppWeek[d]??defaultOppWeek(d);
+  const n=b.dataset.week?+b.dataset.week:ns[Math.min(ns.length-1,Math.max(0,ns.indexOf(cur)+(+b.dataset.step)))];
+  oppWeek[d]=n;
+  const card=document.getElementById("o-"+d),tmp=document.createElement("div");tmp.innerHTML=oppCardHtml(d);
+  const fresh=tmp.firstElementChild;card.replaceWith(fresh);
+  const again=b.dataset.week?fresh.querySelector(`[data-week="${n}"]`):fresh.querySelector(`[data-step="${b.dataset.step}"]`);(again&&!again.disabled?again:fresh.querySelector(`[data-week="${n}"]`)).focus({preventScroll:true});
+  fresh.querySelector(`[data-week="${n}"]`).scrollIntoView({block:"nearest",inline:"nearest"});
+});
+
 /* ---------- defense table ---------- */
 let defSort={key:"r_pass",dir:-1};
 function renderDef(){
@@ -1474,14 +1554,15 @@ function render(){
   const all=players();
   document.getElementById("gamesView").hidden=state.view!=="games";
   document.getElementById("teamView").hidden=state.view!=="team";
+  document.getElementById("oppView").hidden=state.view!=="opp";
   document.getElementById("listView").hidden=state.view!=="list";
   document.querySelectorAll("[data-view]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.view===state.view));
   document.querySelectorAll("[data-pos]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.pos===state.pos));
   document.getElementById("metric").value=metric();
   const gs=document.getElementById("gsort"),noWx=!Object.keys(WX).length;gs.querySelector('[value="wx"]').disabled=noWx;if(noWx&&state.gsort==="wx")state.gsort="kick";gs.value=state.gsort;document.getElementById("gsortField").style.display=state.view!=="games"?"none":"";
-  document.getElementById("scoring").value=state.scoring;document.getElementById("scoringField").hidden=!hasFp()&&state.view!=="team";
+  document.getElementById("scoring").value=state.scoring;document.getElementById("scoringField").hidden=!hasFp()&&state.view!=="team"&&state.view!=="opp";
   if(fillJump._view!==state.view){fillJump._view=state.view;fillJump()}
-  if(state.view==="games")renderGames(all);else if(state.view==="team")renderTeams();else renderList(all);
+  if(state.view==="games")renderGames(all);else if(state.view==="team")renderTeams();else if(state.view==="opp")renderOpps();else renderList(all);
 }
 document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{state.view=b.dataset.view;save();render()});
 document.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{state.pos=b.dataset.pos;save();render()});
@@ -1494,17 +1575,17 @@ function renderWeeks(){
   sel.innerHTML=Object.keys(WEEKS).map(Number).sort((a,b)=>a-b).map(n=>`<option value="${n}">Week ${n}${n===CURRENT_WEEK?" · now":WEEKS[n].status==="preview"?" · preview":""}</option>`).join("");
   sel.value=String(WEEK);
 }
-document.getElementById("weekSel").onchange=e=>{loadWeek(+e.target.value);if(state.view==="team")for(const t in TEAMS)teamWeek[t]=WEEK;render();renderDef()};
+document.getElementById("weekSel").onchange=e=>{loadWeek(+e.target.value);if(state.view==="team")for(const t in TEAMS)teamWeek[t]=WEEK;if(state.view==="opp")for(const t in TEAMS)oppWeek[t]=WEEK;render();renderDef()};
 function fillJump(){
   const sel=document.getElementById("jump");
-  document.querySelector('label[for="jump"]').textContent=state.view==="team"?"Jump to Team":"Jump to Game";
-  if(state.view==="team"){sel.innerHTML='<option value="">Jump to Team</option>'+TEAM_ORDER.map(t=>`<option value="team:${t}">${teamFull(t)}</option>`).join("");return}
+  document.querySelector('label[for="jump"]').textContent=state.view==="team"||state.view==="opp"?"Jump to Team":"Jump to Game";
+  if(state.view==="team"||state.view==="opp"){sel.innerHTML='<option value="">Jump to Team</option>'+TEAM_ORDER.map(t=>`<option value="team:${t}">${teamFull(t)}</option>`).join("");return}
   sel.innerHTML='<option value="">Jump to Game</option>'+[...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2])).map(([a,h,iso])=>{const s=SCORES[h];return `<option value="${a}-${h}">${a} @ ${h} · ${s?`Final ${a} ${s[0]}, ${h} ${s[1]}`:fmtKick(iso)}</option>`}).join("");
 }
 function jumpTo(id){
   if(id.startsWith("team:")){
     const t=id.slice(5);if(state.q){state.q="";document.getElementById("q").value="";render()}
-    const card=document.getElementById("t-"+t);if(!card)return;
+    const card=document.getElementById((state.view==="opp"?"o-":"t-")+t);if(!card)return;
     const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
     card.scrollIntoView({behavior:reduce?"auto":"smooth",block:"start"});
     card.classList.add("flash");setTimeout(()=>card.classList.remove("flash"),1400);return;
@@ -1595,5 +1676,6 @@ showIdle();
   else{showIdle();btn.hidden=false}
 })();
 </script>
+
 </body>
 </html>
