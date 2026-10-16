@@ -392,11 +392,22 @@ def main():
     except Exception as e:  # carry on without the prior
         report.append(f"Defense vs position: no 2025 prior ({e}); using this season only")
     vrep = []
+    # last week that is basically complete (most teams have played), so Week 1's hindsight rating uses whole weeks
+    teams_by_week = {}
+    for r in rows:
+        teams_by_week.setdefault(int(r["week"]), set()).add(r["team"])
+    latest = max((w for w, t in teams_by_week.items() if len(t) >= 24), default=0)
     for n in sorted(weeks, key=int):
         v = vpos_for_week(rows, int(n), last)
+        hindsight = False
+        if not v and latest:
+            # Week 1 has no earlier games: rate it with everything played so far (hindsight, Week 1 included)
+            v, hindsight = vpos_for_week(rows, latest + 1, last), True
         if not v:
             continue
-        v["wr"] = wr_roles(rows, int(n), weeks[n].get("STARTERS") or {})
+        v["wr"] = wr_roles(rows, latest + 1 if hindsight else int(n), weeks[n].get("STARTERS") or {})
+        if hindsight:
+            v["hindsight"] = True
         s0, s1 = week_block(page, int(n))
         page = page[:s0] + set_line(page[s0:s1], "VPOS", v) + page[s1:]
         vrep.append(f"{n} (thru Wk {v['thru']})")
