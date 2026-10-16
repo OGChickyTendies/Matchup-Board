@@ -1366,7 +1366,7 @@ function teamCardHtml(t){
   else{const s=wkScore(n,o.g),mine=s?(o.home?s[1]:s[0]):null,theirs=s?(o.home?s[0]:s[1]):null;
     sub+=` · ${o.home?"vs":"@"} ${o.opp}`+(s?` · <b>${mine>theirs?"W":mine<theirs?"L":"T"} ${mine}–${theirs}${s[2]?" "+s[2]:""}</b>`:` · ${fmtKick(o.g[2])}`)}
   const strip=ns.map(k=>{const g=wkGame(k,t),tot=wkTotal(k,t);
-    return `<button type="button" data-team="${t}" data-week="${k}" aria-pressed="${k===n}" class="${!g?"bye":tot==null?"none":""}" title="Week ${k}${!g?": bye":tot!=null?`: ${tot.toFixed(1)} fpts from the starters`:""}">W${k}<b>${!g?"BYE":tot!=null?tot.toFixed(0):"–"}</b></button>`}).join("");
+    return `<button type="button" data-team="${t}" data-week="${k}" aria-pressed="${k===n}" class="${!g?"bye":tot==null?"none":""}" title="Week ${k}${!g?": bye":` ${g.home?"vs":"@"} ${teamFull(g.opp)}${tot!=null?` · ${tot.toFixed(1)} fpts from the starters`:""}`}">W${k}<b>${!g?"BYE":g.opp}</b></button>`}).join("");
   const rows=wkList(n,t).filter(([p])=>state.pos==="ALL"||p===state.pos).map(([p,name],i)=>{
     const f=wkFp(n,name),inj=(w.INJ||{})[name],fill=(w.FILLIN||{})[name];
     const sub2=f?(f[2]||""):fill?fill:inj?(STAT[inj[0]]||inj[0])+" · "+inj[1]:"";
