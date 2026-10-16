@@ -277,6 +277,39 @@ h2{margin:16px 0 0;font-family:var(--display);font-size:30px;font-weight:800;tex
 @media (max-width:520px){.toast span{white-space:nowrap}}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;max-width:calc(100vw - 32px);padding:10px 14px;border-radius:12px;background:var(--brand-deep);color:var(--on-brand);font-size:14px;box-shadow:var(--shadow);display:flex;gap:10px;align-items:center}
 .toast input{all:unset;min-width:0;width:230px;max-width:60vw;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.14);font-family:var(--mono);font-size:12px}
+
+/* by team: one card per team, stepping through its weeks */
+.tbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin:0 0 12px;font-size:14px;color:var(--ink-3)}
+.tbar .sharebtn{margin-top:0}
+.tbar-r{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.tcard.flash{box-shadow:0 0 0 3px var(--brand),var(--shadow);transition:box-shadow .3s}
+.trow .chip{min-width:32px;height:24px;font-size:12px}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,370px),1fr));gap:16px}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:var(--shadow);scroll-margin-top:calc(var(--toph,64px) + 12px)}
+.tc-head{display:flex;align-items:center;gap:10px;padding:14px 16px 10px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.tc-head h3{margin:0;font-family:var(--display);font-weight:800;font-size:22px;line-height:1}
+.tc-head small{display:block;margin-top:3px;font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+.tc-head small b{color:var(--ink)}
+.tc-nav{margin-left:auto;display:flex;gap:6px}
+.tc-nav button{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);cursor:pointer;padding:0}
+.tc-nav button:hover:not(:disabled){border-color:var(--brand);color:var(--brand)}
+.tc-nav button:disabled{opacity:.35;cursor:default}
+.tc-weeks{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tc-weeks::-webkit-scrollbar{display:none}
+.tc-weeks button{flex:1 0 auto;min-width:44px;display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 4px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--ink-3);cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:.06em}
+.tc-weeks button b{font-size:13px;color:var(--ink);letter-spacing:0}
+.tc-weeks button.bye b,.tc-weeks button.none b{color:var(--ink-4)}
+.tc-weeks button[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-tint)}
+.tc-weeks button[aria-pressed="true"] b{color:var(--brand)}
+.tc-body{padding:4px 16px 8px}
+.trow{display:grid;grid-template-columns:44px minmax(0,1fr) auto 48px;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.trow:first-child{border-top:0}
+.trow .fp{text-align:right}
+.trow .tname{min-width:0;color:var(--ink);font-weight:600}
+.trow .tname small{display:block;font-weight:500;font-size:12px;color:var(--ink-4);line-height:1.35}
+.tc-foot{display:flex;justify-content:space-between;gap:8px;padding:10px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--ink-3)}
+.tc-foot b{font-family:var(--mono);color:var(--ink)}
+.tc-empty{padding:18px 0;text-align:center;color:var(--ink-4);font-size:14px}
 footer{border-top:1px solid var(--line);padding-block:14px 32px;font-size:12px;color:var(--ink-4)}
 footer p{margin:0;max-width:110ch}
 </style>
@@ -316,6 +349,7 @@ footer p{margin:0;max-width:110ch}
     <div class="seg" role="group" aria-label="View">
       <button id="v-games" type="button" aria-pressed="true" data-view="games">By game</button>
       <button id="v-list" type="button" aria-pressed="false" data-view="list">All starters</button>
+      <button id="v-team" type="button" aria-pressed="false" data-view="team">By team</button>
     </div>
     <div class="pills" role="group" aria-label="Position" id="posSeg">
       <button class="pill" type="button" aria-pressed="true" data-pos="ALL">All</button>
@@ -346,6 +380,7 @@ footer p{margin:0;max-width:110ch}
 
   <p class="weeknote" id="weekNote" hidden></p>
   <section id="gamesView"><div class="games" id="games"></div></section>
+  <section id="teamView" hidden><div class="tbar"><span id="tbarNote">Each team steps through its own weeks.</span><div class="tbar-r"><label class="field" for="tsort">Sort teams <select id="tsort"><option value="az">A–Z</option><option value="ease">Easiest matchups first</option></select></label><button type="button" class="sharebtn" id="teamReset">Reset all to Week <span id="teamResetWk"></span></button></div></div><div class="tgrid" id="tgrid"></div></section>
   <section id="listView" hidden><div class="listcard"><div class="scroll desk-only"><table id="plist"><thead></thead><tbody></tbody></table></div>
     <div class="mobile-only"><div class="mbar"><label for="mSort">Sort by</label><select id="mSort"><option value="rank">Softest matchup</option><option value="fp">Fantasy points</option><option value="imp">Team total</option><option value="name">Name</option></select></div><div class="mlist" id="mlist"></div></div></div></section>
   <p class="byes" id="byes"></p>
@@ -1015,9 +1050,9 @@ function loadWeek(n){
   fillJump();
 }
 
-let state={view:"games",pos:"ALL",metric:"pos",scoring:"ppr",gsort:"kick",q:""};
+let state={view:"games",pos:"ALL",metric:"pos",scoring:"ppr",gsort:"kick",tsort:"az",q:""};
 try{const s=JSON.parse(localStorage.getItem("smb-state")||"{}");if(!s.mv)delete s.metric;Object.assign(state,s)}catch(e){}
-function save(){try{localStorage.setItem("smb-state",JSON.stringify({view:state.view,pos:state.pos,metric:state.metric,scoring:state.scoring,gsort:state.gsort,mv:2}))}catch(e){}}
+function save(){try{localStorage.setItem("smb-state",JSON.stringify({view:state.view,pos:state.pos,metric:state.metric,scoring:state.scoring,gsort:state.gsort,tsort:state.tsort,mv:2}))}catch(e){}}
 
 const tz="America/Denver";
 const fmtKick=iso=>iso.length===10?new Date(iso+"T12:00:00Z").toLocaleDateString("en-US",{timeZone:"UTC",weekday:"short",month:"short",day:"numeric"}):new Date(iso).toLocaleString("en-US",{timeZone:tz,weekday:"short",hour:"numeric",minute:"2-digit"}).replace(" "," · ")+" MT";
@@ -1273,6 +1308,88 @@ function renderList(all){
 }
 document.getElementById("mSort").onchange=e=>{const k=e.target.value;listSort={key:k,dir:k==="name"?1:-1};renderList(players())};
 
+/* ---------- by team ---------- */
+// One card per team. Each card steps through that team's weeks on its own (arrows or the week strip):
+// finished weeks show each starter's fantasy points and stat line, upcoming weeks show the projected starters.
+const TEAM_ORDER=Object.keys(TEAMS).sort((a,b)=>teamFull(a).localeCompare(teamFull(b)));
+const weekNums=()=>Object.keys(WEEKS).map(Number).sort((a,b)=>a-b);
+let teamWeek={};
+function wkFp(n,name){const w=WEEKS[n],b=(w.BOX||{})[name];return (w.FP||{})[name]||(b&&!b.dnp?[...boxPts(b),""]:null)}
+function wkGame(n,t){for(const g of WEEKS[n].GAMES){if(g[0]===t)return{opp:g[1],home:false,g};if(g[1]===t)return{opp:g[0],home:true,g}}return null}
+function wkScore(n,g){const w=WEEKS[n],s=(w.SCORES||{})[g[1]];if(s)return s;
+  const m=/^Final: (\w+) (\d+), (\w+) (\d+)( \(OT\))?/.exec(g[3]||"");return m&&m[1]===g[0]&&m[3]===g[1]?[+m[2],+m[4],...(m[5]?["OT"]:[])]:null}
+function wkList(n,t){const s=WEEKS[n].STARTERS[t];if(!s)return [];
+  const wr=(WEEKS[n].VPOS&&WEEKS[n].VPOS.wr&&WEEKS[n].VPOS.wr[t])||[],role=x=>{const i=wr.indexOf(x);return i<0?9:i};
+  return [["QB",s[0]],["RB",s[1]],...[...s[2]].sort((x,y)=>role(x)-role(y)).map(x=>["WR",x]),["TE",s[3]]]}
+// matchup rank chips for any week: load that week's data, read each starter's rank the same way the
+// other views do (current "Rank by" choice), then put the week on screen back. Cached per week and setting.
+const rankCache={};
+function wkRanks(n){
+  const key=n+"|"+state.metric;if(rankCache[key])return rankCache[key];
+  const keep=WEEK,out={};
+  if(n!==keep)loadWeek(n);
+  for(const p of players())out[p.team+"|"+p.name]=p;
+  if(n!==keep)loadWeek(keep);
+  return rankCache[key]=out;
+}
+function wkChip(n,t,name){
+  const p=wkRanks(n)[t+"|"+name];
+  if(!p||p.rank==null)return `<span class="chip none" title="No defense data before this week">—</span>`;
+  const title=p.vp?p.vp:`${TEAMS[p.opp]} ${p.side}: ${p.val} ${p.unit}, ranked ${ord(p.rank)} of 32 (32 = softest)`;
+  return `<span class="chip ${tier(p.rank)}" title="${esc(title)}">${p.rank}</span>`;
+}
+function wkTotal(n,t){const l=wkList(n,t),f=l.map(([,x])=>wkFp(n,x));return l.length&&f.every(Boolean)?f.reduce((a,x)=>a+pts(x),0):null}
+function defaultTeamWeek(t){const ns=weekNums().filter(n=>wkTotal(n,t)!=null);return ns.length?ns[ns.length-1]:CURRENT_WEEK}
+function teamCardHtml(t){
+  const ns=weekNums(),n=teamWeek[t]??=defaultTeamWeek(t),w=WEEKS[n],o=wkGame(n,t);
+  let sub=`Week ${n}`;
+  if(!o)sub+=" · <b>Bye</b>";
+  else{const s=wkScore(n,o.g),mine=s?(o.home?s[1]:s[0]):null,theirs=s?(o.home?s[0]:s[1]):null;
+    sub+=` · ${o.home?"vs":"@"} ${o.opp}`+(s?` · <b>${mine>theirs?"W":mine<theirs?"L":"T"} ${mine}–${theirs}${s[2]?" "+s[2]:""}</b>`:` · ${fmtKick(o.g[2])}`)}
+  const strip=ns.map(k=>{const g=wkGame(k,t),tot=wkTotal(k,t);
+    return `<button type="button" data-team="${t}" data-week="${k}" aria-pressed="${k===n}" class="${!g?"bye":tot==null?"none":""}" title="Week ${k}${!g?": bye":tot!=null?`: ${tot.toFixed(1)} fpts from the starters`:""}">W${k}<b>${!g?"BYE":tot!=null?tot.toFixed(0):"–"}</b></button>`}).join("");
+  const rows=wkList(n,t).filter(([p])=>state.pos==="ALL"||p===state.pos).map(([p,name],i)=>{
+    const f=wkFp(n,name),inj=(w.INJ||{})[name],fill=(w.FILLIN||{})[name];
+    const sub2=f?(f[2]||""):fill?fill:inj?(STAT[inj[0]]||inj[0])+" · "+inj[1]:"";
+    const v=f?pts(f):null,cls=v==null?" lo":v>=20?" hi":v<5?" lo":"";
+    const tierN=(wkRanks(n)[t+"|"+name]||{}).tier||"";
+    return `<div class="trow"><span class="pos" style="--c:${POSC[p]}">${p}${tierN}</span><div class="tname">${esc(name)}${sub2?`<small>${esc(sub2)}</small>`:""}</div>${wkChip(n,t,name)}<span class="fp${cls}">${v==null?"–":v.toFixed(1)}</span></div>`}).join("");
+  const tot=wkTotal(n,t),played=ns.filter(k=>wkTotal(k,t)!=null),avg=played.length?played.reduce((a,k)=>a+wkTotal(k,t),0)/played.length:null;
+  const body=!o?`<p class="tc-empty">On bye in Week ${n}</p>`:rows||`<p class="tc-empty">No ${state.pos} listed</p>`;
+  const i=ns.indexOf(n);
+  return `<article class="tcard" id="t-${t}"><div class="tc-head"><span class="crest">${t}</span><div><h3>${TEAMS[t]}</h3><small>${sub}</small></div>
+    <div class="tc-nav"><button type="button" data-team="${t}" data-step="-1" aria-label="${TEAMS[t]}: previous week" ${i<=0?"disabled":""}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><button type="button" data-team="${t}" data-step="1" aria-label="${TEAMS[t]}: next week" ${i>=ns.length-1?"disabled":""}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button></div></div>
+    <div class="tc-weeks" role="group" aria-label="${TEAMS[t]} weeks">${strip}</div>
+    <div class="tc-body">${body}</div>
+    <div class="tc-foot"><span>Week ${n} starters: <b>${tot!=null?tot.toFixed(1)+" fpts":"–"}</b></span><span>Season avg: <b>${avg!=null?avg.toFixed(1):"–"}</b></span></div></article>`;
+}
+function renderTeams(){
+  document.getElementById("teamResetWk").textContent=CURRENT_WEEK;
+  const q=state.q.trim().toLowerCase();
+  document.getElementById("tsort").value=state.tsort;
+  // easiest matchups: average rank (32 = softest) of the starters shown on each card, for the week that card is on;
+  // teams on bye or without ranks that week go last. Cards keep their place while stepping weeks until the next re-sort.
+  const ease=t=>{const n=teamWeek[t]??=defaultTeamWeek(t),r=wkRanks(n);
+    const v=wkList(n,t).filter(([p])=>state.pos==="ALL"||p===state.pos).map(([,x])=>r[t+"|"+x]).filter(p=>p&&p.rank!=null).map(p=>p.rank);
+    return v.length?v.reduce((a,x)=>a+x,0)/v.length:-1};
+  const order=state.tsort==="ease"?[...TEAM_ORDER].sort((a,b)=>ease(b)-ease(a)||TEAM_ORDER.indexOf(a)-TEAM_ORDER.indexOf(b)):TEAM_ORDER;
+  const list=order.filter(t=>!q||(t+" "+TEAMS[t]+" "+CITY[t]).toLowerCase().includes(q)||weekNums().some(n=>wkList(n,t).some(([,x])=>x.toLowerCase().includes(q))));
+  document.getElementById("tgrid").innerHTML=list.length?list.map(teamCardHtml).join(""):`<p class="weeknote">No teams or players match that search.</p>`;
+}
+document.getElementById("tsort").onchange=e=>{state.tsort=e.target.value;save();renderTeams()};
+document.getElementById("teamReset").onclick=()=>{for(const t in TEAMS)teamWeek[t]=CURRENT_WEEK;renderTeams()};
+document.getElementById("tgrid").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-team]");if(!b)return;
+  const t=b.dataset.team,ns=weekNums(),cur=teamWeek[t]??defaultTeamWeek(t);
+  const n=b.dataset.week?+b.dataset.week:ns[Math.min(ns.length-1,Math.max(0,ns.indexOf(cur)+(+b.dataset.step)))];
+  teamWeek[t]=n;
+  const card=document.getElementById("t-"+t),tmp=document.createElement("div");tmp.innerHTML=teamCardHtml(t);
+  const fresh=tmp.firstElementChild;card.replaceWith(fresh);
+  // keep focus on the control that was used, and keep the chosen week in view in the strip
+  const again=b.dataset.week?fresh.querySelector(`[data-week="${n}"]`):fresh.querySelector(`[data-step="${b.dataset.step}"]`);(again&&!again.disabled?again:fresh.querySelector(`[data-week="${n}"]`)).focus({preventScroll:true});
+  fresh.querySelector(`[data-week="${n}"]`).scrollIntoView({block:"nearest",inline:"nearest"});
+});
+
 /* ---------- defense table ---------- */
 let defSort={key:"r_pass",dir:-1};
 function renderDef(){
@@ -1334,13 +1451,15 @@ document.addEventListener("click",e=>{const b=e.target.closest?.(".pname");if(b)
 function render(){
   const all=players();
   document.getElementById("gamesView").hidden=state.view!=="games";
+  document.getElementById("teamView").hidden=state.view!=="team";
   document.getElementById("listView").hidden=state.view!=="list";
   document.querySelectorAll("[data-view]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.view===state.view));
   document.querySelectorAll("[data-pos]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.pos===state.pos));
   document.getElementById("metric").value=metric();
   const gs=document.getElementById("gsort"),noWx=!Object.keys(WX).length;gs.querySelector('[value="wx"]').disabled=noWx;if(noWx&&state.gsort==="wx")state.gsort="kick";gs.value=state.gsort;document.getElementById("gsortField").style.display=state.view!=="games"?"none":"";
-  document.getElementById("scoring").value=state.scoring;document.getElementById("scoringField").hidden=!hasFp();
-  if(state.view==="games")renderGames(all);else renderList(all);
+  document.getElementById("scoring").value=state.scoring;document.getElementById("scoringField").hidden=!hasFp()&&state.view!=="team";
+  if(fillJump._view!==state.view){fillJump._view=state.view;fillJump()}
+  if(state.view==="games")renderGames(all);else if(state.view==="team")renderTeams();else renderList(all);
 }
 document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{state.view=b.dataset.view;save();render()});
 document.querySelectorAll("[data-pos]").forEach(b=>b.onclick=()=>{state.pos=b.dataset.pos;save();render()});
@@ -1353,12 +1472,21 @@ function renderWeeks(){
   sel.innerHTML=Object.keys(WEEKS).map(Number).sort((a,b)=>a-b).map(n=>`<option value="${n}">Week ${n}${n===CURRENT_WEEK?" · now":WEEKS[n].status==="preview"?" · preview":""}</option>`).join("");
   sel.value=String(WEEK);
 }
-document.getElementById("weekSel").onchange=e=>{loadWeek(+e.target.value);render();renderDef()};
+document.getElementById("weekSel").onchange=e=>{loadWeek(+e.target.value);if(state.view==="team")for(const t in TEAMS)teamWeek[t]=WEEK;render();renderDef()};
 function fillJump(){
   const sel=document.getElementById("jump");
+  document.querySelector('label[for="jump"]').textContent=state.view==="team"?"Jump to Team":"Jump to Game";
+  if(state.view==="team"){sel.innerHTML='<option value="">Jump to Team</option>'+TEAM_ORDER.map(t=>`<option value="team:${t}">${teamFull(t)}</option>`).join("");return}
   sel.innerHTML='<option value="">Jump to Game</option>'+[...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2])).map(([a,h,iso])=>{const s=SCORES[h];return `<option value="${a}-${h}">${a} @ ${h} · ${s?`Final ${a} ${s[0]}, ${h} ${s[1]}`:fmtKick(iso)}</option>`}).join("");
 }
 function jumpTo(id){
+  if(id.startsWith("team:")){
+    const t=id.slice(5);if(state.q){state.q="";document.getElementById("q").value="";render()}
+    const card=document.getElementById("t-"+t);if(!card)return;
+    const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+    card.scrollIntoView({behavior:reduce?"auto":"smooth",block:"start"});
+    card.classList.add("flash");setTimeout(()=>card.classList.remove("flash"),1400);return;
+  }
   // the game must be on screen: switch to By game and clear filters that would hide it
   let changed=false;
   if(state.view!=="games"){state.view="games";changed=true}
