@@ -131,6 +131,7 @@ VPOS_POS = {"QB": "QB", "RB": "RB", "FB": "RB", "WR": "WR", "TE": "TE"}
 VPOS_KEYS = ("QB", "RB", "WR", "TE", "WR1", "WR2", "WR3")
 VPOS_PRIOR_OFF = 1.0   # offense baseline: its other games plus this many league-average games
 VPOS_PRIOR_LAST = 6.0  # defense rating starts from last season's rating, counted as this many games
+USE_LAST_SEASON = False  # Oct 19, 2026: Roxane asked for 2026-only defense ranks (no 2025 blend)
 VPOS_PRIOR_DEF = 2.0   # without last season's data: shrink toward average as if 2 average games
 # Backtest on 2026 Weeks 2-5 (Spearman correlation of the pre-week rank with PPR actually allowed):
 # team pass/rush yards 0.00, this season's adjusted rating alone 0.09, blended with 2025 x6 games 0.17.
@@ -389,6 +390,8 @@ def main():
     # defense vs position for every week, the preview week included (it only uses earlier weeks)
     last = None
     try:
+        if not USE_LAST_SEASON:
+            raise RuntimeError("off")
         prev = os.path.join(tempfile.gettempdir(), "stats_player_week_2025.csv")
         if not os.path.exists(prev):
             subprocess.run(["curl", "-sSfL", "--max-time", "180", "-o", prev, PREV_URL], check=True)
@@ -401,7 +404,8 @@ def main():
         last = vpos_for_week(prows, 99)["t"]
         VPOS_PRIOR_DEF = keep
     except Exception as e:  # carry on without the prior
-        report.append(f"Defense vs position: no 2025 prior ({e}); using this season only")
+        if USE_LAST_SEASON:
+            report.append(f"Defense vs position: no 2025 prior ({e}); using this season only")
     vrep = []
     # last week that is basically complete (most teams have played), so Week 1's hindsight rating uses whole weeks
     teams_by_week = {}
