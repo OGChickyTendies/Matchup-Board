@@ -419,7 +419,7 @@ footer p{margin:0;max-width:110ch}
 <dialog id="pdlg" aria-labelledby="pdName"></dialog>
 
 <footer class="wrap">
-  <p>Final scores: Sleeper, checked hourly during game windows. Box scores and fantasy points: nflverse player stats, usually posted within an hour or two of the final whistle. Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for skill players, offensive lines and defenses: the official NFL injury report (practice participation and game status), with CBS Sports as a backup (Q questionable, D doubtful, O out); final statuses come Friday and inactives 90 minutes before kickoff. Defenders on injured reserve: Ourlads reserve lists, with games started from Pro Football Reference. Weather: RotoWire forecasts. Lines: CBS Sports odds (spreads and totals move during the week). Defense: NFL.com team defense stats, 2026 regular season. Defense vs position: nflverse player stats, the PPR points each defense allows to QBs, RBs, WRs and TEs in games before the week, measured against what those offenses usually score at the position, using 2026 games only (with only a few games played, each defense is pulled slightly toward league average). Ranks also fold in touchdowns allowed per game: the RB rank is 2 parts PPR rating to 1 part rushing TDs allowed to RBs, and the QB, WR and TE ranks are 3 parts PPR rating to 1 part passing TDs allowed (TDs already count in PPR, so their extra weight is kept light). With team yards, the run and pass ranks blend yards with TDs allowed 2 to 1, and the QB rank blends pass yards, passing TDs and sacks 2:1:1. Standard scoring is 1 point per 25 passing yards, 4 per passing TD, −2 per interception, 1 per 10 rushing or receiving yards, 6 per rushing or receiving TD, −2 per fumble lost and 2 per two-point conversion; PPR adds 1 per catch and half PPR 0.5. Birthday cake: the game falls on the player’s birthday (nflverse birth dates, game date in Eastern time). House: the stadium is within 25 miles of his hometown, the birthplace on his ESPN profile (international games never count); both icons show when both apply. Weeks 1–4 lineups are who actually played: the QB with the most pass attempts, the RB with the most carries, and the three WRs and the TE with the most targets. Schedule: CBS Sports. Times are Mountain.</p>
+  <p>Scores: ESPN's public scoreboard, loaded live in your browser (every minute while games are on); stored finals are confirmed with Sleeper or nflverse. Box scores and fantasy points: nflverse player stats, usually posted within an hour or two of the final whistle. Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for skill players, offensive lines and defenses: the official NFL injury report (practice participation and game status), with CBS Sports as a backup (Q questionable, D doubtful, O out); final statuses come Friday and inactives 90 minutes before kickoff. Defenders on injured reserve: Ourlads reserve lists, with games started from Pro Football Reference. Weather: RotoWire forecasts. Lines: CBS Sports odds (spreads and totals move during the week). Defense: NFL.com team defense stats, 2026 regular season. Defense vs position: nflverse player stats, the PPR points each defense allows to QBs, RBs, WRs and TEs in games before the week, measured against what those offenses usually score at the position, using 2026 games only (with only a few games played, each defense is pulled slightly toward league average). Ranks also fold in touchdowns allowed per game: the RB rank is 2 parts PPR rating to 1 part rushing TDs allowed to RBs, and the QB, WR and TE ranks are 3 parts PPR rating to 1 part passing TDs allowed (TDs already count in PPR, so their extra weight is kept light). With team yards, the run and pass ranks blend yards with TDs allowed 2 to 1, and the QB rank blends pass yards, passing TDs and sacks 2:1:1. Standard scoring is 1 point per 25 passing yards, 4 per passing TD, −2 per interception, 1 per 10 rushing or receiving yards, 6 per rushing or receiving TD, −2 per fumble lost and 2 per two-point conversion; PPR adds 1 per catch and half PPR 0.5. Birthday cake: the game falls on the player’s birthday (nflverse birth dates, game date in Eastern time). House: the stadium is within 25 miles of his hometown, the birthplace on his ESPN profile (international games never count); both icons show when both apply. Weeks 1–4 lineups are who actually played: the QB with the most pass attempts, the RB with the most carries, and the three WRs and the TE with the most targets. Schedule: CBS Sports. Times are Mountain.</p>
 </footer>
 
 <script>
@@ -1491,6 +1491,9 @@ function currentWeek(){
 }
 const CURRENT_WEEK=currentWeek();
 let HS=null,WEEK,W,GP,DEF,GAMES,STARTERS,INJ,FILLIN,WX,DINJ,OLINJ,ODDS,SCORES,BOX,VP,D,IMP,impRank;
+// in-progress games from the live scoreboard: week -> home team -> {s:[away pts, home pts], det:"Q3 5:12"} (see "live scores" below)
+const LIVEW={};
+const liveOf=h=>(LIVEW[WEEK]||{})[h];
 function rankBy(key){ // 1 = fewest allowed (toughest), 32 = most (softest)
   const arr=Object.values(D).sort((x,y)=>x[key]-y[key]);
   arr.forEach((d,i)=>d["r_"+key]=i+1);
@@ -1688,14 +1691,14 @@ function olCell(team){
   const txt=flag.slice(0,2).map(x=>`${POS[x[1]]||x[1]} ${last(x[0])} ${x[2]}`).join(", ")+(flag.length>2?` +${flag.length-2}`:"");
   return `<span class="olc flag" title="${esc(flag.map(x=>`${POS[x[1]]||x[1]} ${x[0]}: ${STAT[x[2]].toLowerCase()} (${x[3].toLowerCase()}${x[4]?", "+x[4]:""})`).join("; "))}">${esc(txt)}</span>`;
 }
-function scoreText(a,h){const s=SCORES[h];return s?`Final${s[2]?"/"+s[2]:""} · ${a} ${s[0]}, ${h} ${s[1]}`:""}
+function scoreText(a,h){const s=SCORES[h];if(s)return `Final${s[2]?"/"+s[2]:""} · ${a} ${s[0]}, ${h} ${s[1]}`;const l=liveOf(h);return l?`Live ${l.det} · ${a} ${l.s[0]}, ${h} ${l.s[1]}`:""}
 
 /* ---------- by game ---------- */
 function teamHtml(t,g){
-  const imp=IMP[t],s=SCORES[g[1]],sc=s?(t===g[0]?s[0]:s[1]):null,os=s?(t===g[0]?s[1]:s[0]):null;
+  const imp=IMP[t],fs=SCORES[g[1]],lv=fs?null:liveOf(g[1]),s=fs||(lv&&lv.s),sc=s?(t===g[0]?s[0]:s[1]):null,os=s?(t===g[0]?s[1]:s[0]):null;
   const fav=imp!=null&&impTier(t)==="s";
   const fp=sideFp(t);
-  return `<div class="team${fav?" fav":""}${s&&sc>os?" won":""}"><span class="crest">${t}</span><div><h3>${TEAMS[t]}</h3><small>${imp!=null?`Implied <b>${imp.toFixed(1)}</b>`:esc(CITY[t])}${fp?` · ${fp}`:""}</small></div>${s?`<span class="score">${sc}</span>`:""}</div>`;
+  return `<div class="team${fav?" fav":""}${fs&&sc>os?" won":""}"><span class="crest">${t}</span><div><h3>${TEAMS[t]}</h3><small>${imp!=null?`Implied <b>${imp.toFixed(1)}</b>`:esc(CITY[t])}${fp?` · ${fp}`:""}</small></div>${s?`<span class="score">${sc}</span>`:""}</div>`;
 }
 function gameCard(a,h,iso,note,rowsHtml){
   const card=document.createElement("article");card.className="game";card.id=`g-${a}-${h}`;
@@ -1772,6 +1775,7 @@ function wxScore(h){
 // game state: live (kicked off, no final score yet, within 4.5 hours), upcoming, or final
 function gameState(h,iso){
   if(SCORES[h])return "final";
+  if(liveOf(h))return "live";
   const k=Date.parse(iso.length===10?iso+"T12:00:00Z":iso),now=Date.now();
   if(iso.length===10||now>k+4.5*3600e3)return now>k?"final":"upcoming";
   return now>=k?"live":"upcoming";
@@ -2080,7 +2084,7 @@ function fillJump(){
   const sel=document.getElementById("jump");
   document.querySelector('label[for="jump"]').textContent=state.view==="team"||state.view==="opp"?"Jump to Team":"Jump to Game";
   if(state.view==="team"||state.view==="opp"){sel.innerHTML='<option value="">Jump to Team</option>'+TEAM_ORDER.map(t=>`<option value="team:${t}">${teamFull(t)}</option>`).join("");return}
-  sel.innerHTML='<option value="">Jump to Game</option>'+[...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2])).map(([a,h,iso])=>{const s=SCORES[h];return `<option value="${a}-${h}">${a} @ ${h} · ${s?`Final ${a} ${s[0]}, ${h} ${s[1]}`:fmtKick(iso)}</option>`}).join("");
+  sel.innerHTML='<option value="">Jump to Game</option>'+[...GAMES].sort((x,y)=>Date.parse(x[2])-Date.parse(y[2])).map(([a,h,iso])=>{const s=SCORES[h],l=liveOf(h);return `<option value="${a}-${h}">${a} @ ${h} · ${s?`Final ${a} ${s[0]}, ${h} ${s[1]}`:l?`Live ${a} ${l.s[0]}, ${h} ${l.s[1]}`:fmtKick(iso)}</option>`}).join("");
 }
 function jumpTo(id){
   if(id.startsWith("team:")){
@@ -2135,6 +2139,51 @@ const SITE_URL="https://matchup-board.netlify.app/";
     const t=toast(`<span>Copy link</span><input readonly value="${esc(u)}" aria-label="Link to Matchup Sheet"><button type="button" class="pd-x" style="width:28px;height:28px;color:inherit;font-size:20px" aria-label="Close">×</button>`,0);
     const inp=t.querySelector("input");inp.focus();inp.select();t.querySelector("button").onclick=()=>t.hidden=true;
   };
+})();
+
+/* ---------- live scores ----------
+   The page reads ESPN's public NFL scoreboard straight from the browser, so finals (and running scores
+   during games) show up without anyone republishing the page. Finished games are written into
+   WEEKS[n].SCORES for this visit; scores already stored on the page win if the two ever disagree.
+   If the feed can't be reached (offline, or inside the Claude artifact viewer) the stored scores are used. */
+(()=>{
+  const ESPN=n=>`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${n}&dates=2026`;
+  const CODE={WSH:"WAS",LA:"LAR",JAC:"JAX"},code=t=>CODE[t]||t;
+  const kick=g=>Date.parse(g[2].length===10?g[2]+"T12:00:00Z":g[2]);
+  // a week needs the feed while one of its games has kicked off (or is about to) and has no stored final
+  const needs=n=>{const w=WEEKS[n];if(!w||w.backfill)return false;const now=Date.now(),sc=w.SCORES||{};
+    return w.GAMES.some(g=>!sc[g[1]]&&now>=kick(g)-15*60e3)};
+  async function pull(n){
+    const r=await fetch(ESPN(n),{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);
+    const data=await r.json(),w=WEEKS[n],pairs=new Set(w.GAMES.map(g=>g[0]+"@"+g[1]));
+    const sc=w.SCORES=w.SCORES||{},live={};let changed=false;
+    for(const ev of data.events||[]){
+      const c=(ev.competitions||[])[0];if(!c)continue;
+      const side=k=>(c.competitors||[]).find(x=>x.homeAway===k)||{};
+      const A=side("away"),H=side("home"),a=code(A.team&&A.team.abbreviation),h=code(H.team&&H.team.abbreviation);
+      if(!pairs.has(a+"@"+h))continue;
+      const st=(c.status||ev.status||{}),ty=st.type||{},as=parseInt(A.score,10),hs=parseInt(H.score,10);
+      if(isNaN(as)||isNaN(hs))continue;
+      if(ty.completed){if(!sc[h]){sc[h]=[as,hs,...((st.period||0)>4||/OT/.test(ty.shortDetail||"")?["OT"]:[])];changed=true}}
+      else if(ty.state==="in")live[h]={s:[as,hs],det:ty.shortDetail||"in progress"};
+    }
+    if(JSON.stringify(live)!==JSON.stringify(LIVEW[n]||{}))changed=true;
+    LIVEW[n]=live;return changed;
+  }
+  let timer=null;
+  async function tick(){
+    clearTimeout(timer);
+    const weeks=[...new Set([CURRENT_WEEK,WEEK])].filter(needs);
+    let changed=false;
+    for(const n of weeks){try{if(await pull(n))changed=true}catch(e){/* feed unreachable: keep stored scores */}}
+    if(changed){if(SCORES&&WEEKS[WEEK].SCORES)Object.assign(SCORES,WEEKS[WEEK].SCORES);render();fillJump()}
+    // every minute while a game is on, otherwise every 15 minutes; paused while the tab is hidden
+    const on=weeks.some(n=>Object.keys(LIVEW[n]||{}).length||WEEKS[n].GAMES.some(g=>{const k=kick(g),now=Date.now();return now>=k-15*60e3&&now<k+5*3600e3&&!(WEEKS[n].SCORES||{})[g[1]]}));
+    if(!document.hidden)timer=setTimeout(tick,on?60e3:15*60e3);
+  }
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)tick()});
+  document.getElementById("weekSel").addEventListener("change",()=>tick());
+  tick();
 })();
 
 /* ---------- refresh on open ---------- */
