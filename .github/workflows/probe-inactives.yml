@@ -1,0 +1,49 @@
+# Temporary: checks whether ESPN's public feeds list game-day inactives. Delete after use.
+name: Probe inactives
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          def get(u):
+              r = urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=30)
+              return r.headers.get("access-control-allow-origin"), json.load(r)
+          def find(o, path=""):
+              if isinstance(o, dict):
+                  for k, v in o.items():
+                      if "inactive" in k.lower() or "didnotplay" in k.lower(): print("KEY", path + "/" + k, json.dumps(v)[:300])
+                      find(v, path + "/" + k)
+              elif isinstance(o, list):
+                  for i, v in enumerate(o[:60]): find(v, f"{path}[{i}]")
+              elif isinstance(o, str) and "inactive" in o.lower(): print("STR", path, o[:200])
+          for ev in ("401873007", "401873010"):
+              print("=== summary", ev)
+              try:
+                  cors, d = get(f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={ev}")
+                  print("CORS", cors, "keys", list(d.keys()))
+                  find(d)
+                  for t in (d.get("injuries") or [])[:2]:
+                      print("INJ team", t.get("team", {}).get("abbreviation"), json.dumps(t.get("injuries", [])[:2])[:600])
+              except Exception as e: print("ERR", e)
+              print("=== core competitors", ev)
+              try:
+                  cors, c = get(f"https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/{ev}/competitions/{ev}/competitors")
+                  print("CORS", cors)
+                  for it in c.get("items", []):
+                      ref = it.get("$ref") or ""
+                      _, comp = get(ref)
+                      roster = comp.get("roster", {}).get("$ref")
+                      print("team", comp.get("id"), "roster ref", roster)
+                      if roster:
+                          _, ro = get(roster)
+                          ents = ro.get("entries", [])
+                          print(" entries", len(ents), "keys", list(ents[0].keys()) if ents else None)
+                          print(" sample", json.dumps(ents[:2])[:700])
+                          from collections import Counter
+                          print(" active", Counter(str(e.get("active")) for e in ents), "didNotPlay", Counter(str(e.get("didNotPlay")) for e in ents), "starter", Counter(str(e.get("starter")) for e in ents))
+                          print(" inactive names", [e.get("displayName") for e in ents if e.get("active") is False or e.get("didNotPlay")][:20])
+              except Exception as e: print("ERR", e)
+          PY
