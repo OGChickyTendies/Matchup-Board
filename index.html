@@ -512,6 +512,8 @@ function spreadText(a,h){const o=ODDS[h];if(!o)return"";if(o[0]===0)return"Pick'
    opponent-adjusted PPR pts/g (2026 only, shrunk toward average early on), games, TDs allowed/g (RB: rushing TDs by RBs; others: passing TDs), PPR-only rank, TD rank]}}} = defense vs position going into the week (tools/points.py, nflverse).
    SCORES home team: [away pts, home pts, "OT"?] once Sleeper marks the game complete (tools/sleeper.py).
    reportsFor: optional list of team codes whose practice reports have started (preview weeks only).
+   auto: true marks a week built by tools/auto.py (the weekly rebuild that runs on its own; see "auto data" below):
+   later automatic rebuilds may replace its schedule, defense and lineups.
    backfill: true marks weeks 1-4, added after the fact: no lineups, injuries, weather or lines, kickoff is a date,
    GAMES note holds the final score, and yardsOnly means DEF has yards but no attempts (null), so ranks use yards per game. */
 const WEEKS={
@@ -1489,7 +1491,7 @@ function currentWeek(){
   for(const n of ns){const last=Math.max(...WEEKS[n].GAMES.map(g=>Date.parse(g[2])));if(now<last+4*3600e3)return n}
   return ns[ns.length-1];
 }
-const CURRENT_WEEK=currentWeek();
+let CURRENT_WEEK=currentWeek();
 let HS=null,WEEK,W,GP,DEF,GAMES,STARTERS,INJ,FILLIN,WX,DINJ,OLINJ,ODDS,SCORES,BOX,VP,D,IMP,impRank;
 // in-progress games from the live scoreboard: week -> home team -> {s:[away pts, home pts], det:"Q3 5:12"} (see "live scores" below)
 const LIVEW={};
@@ -1555,7 +1557,7 @@ function loadWeek(n){
   document.getElementById("defNote").textContent=(W.backfill?(W.defThrough?`Defense going into Week ${n}: totals through Week ${W.defThrough} (${W.GP} game${W.GP>1?"s":""} each). Yards only; pass yards are net of sacks. Click a column to sort.`:(HS?`No games had been played before Week 1, so these are season totals through Week ${HS} (${typeof GP==="number"?GP+" games each":"per-team games played"}), Week 1 included. Click a column to sort.`:"No games had been played before Week 1.")):`Season totals through Week ${W.defThrough} (${typeof W.GP==="number"?W.GP+" games each":"per-team games played"}). Pass yards are gross passing yards allowed. Click a column to sort.`)+(VP?` Defense vs position (vs QB, RB, WR, TE): PPR points allowed to each position in games through Week ${VP.thru}, adjusted for the offenses faced, 2026 games only (also counting TDs allowed: rushing TDs vs RB, passing TDs vs QB, WR and TE); 1 = toughest, 32 = softest.`:"")+(Object.values(D).some(d=>d.ptdpg!=null)?" Run and pass ranks blend yards per game (2 parts) with TDs allowed per game (1 part); QB rank blends pass yards, passing TDs and sacks 2:1:1.":"");
   const note=document.getElementById("weekNote");
   note.hidden=st==="live";
-  note.textContent=W.backfill?(W.defThrough?`Week ${n} is over. Added after the fact: each matchup shows the opponent's defense ranks as they stood going into the week (yards allowed per game through Week ${W.defThrough}; pass yards net of sacks). Lineups are who actually played (most pass attempts, carries and targets) with their fantasy points; injuries, weather and lines weren't tracked this week.`:`Week ${n} is over. Added after the fact: no games had been played before Week 1, so ${HS?`its matchup ranks use what we know now: each defense through Week ${HS} (hindsight, so Week 1 itself counts)`:"there are no defense ranks"}. Lineups are who actually played (most pass attempts, carries and targets) with their fantasy points; injuries, weather and lines weren't tracked this week.`):st==="preview"?`Week ${n} preview: matchups and defense ranks, plus practice-report injuries for teams that have started reporting. The full board, with weather and betting lines, is built Wednesday after the first full practice report.`:st==="final"?`Week ${n} is over. This is the board as it stood ${W.updated}.`:"";
+  note.textContent=W.backfill?(W.defThrough?`Week ${n} is over. Added after the fact: each matchup shows the opponent's defense ranks as they stood going into the week (yards allowed per game through Week ${W.defThrough}; pass yards net of sacks). Lineups are who actually played (most pass attempts, carries and targets) with their fantasy points; injuries, weather and lines weren't tracked this week.`:`Week ${n} is over. Added after the fact: no games had been played before Week 1, so ${HS?`its matchup ranks use what we know now: each defense through Week ${HS} (hindsight, so Week 1 itself counts)`:"there are no defense ranks"}. Lineups are who actually played (most pass attempts, carries and targets) with their fantasy points; injuries, weather and lines weren't tracked this week.`):st==="preview"?`Week ${n} preview: matchups and defense ranks, plus practice-report injuries for teams that have started reporting. Lines and weather fill in as the week gets closer.`:st==="final"?`Week ${n} is over. This is the board as it stood ${W.updated}.`:"";
   fillJump();
 }
 
@@ -2227,21 +2229,33 @@ showIdle();
 
 /* ---------- auto data ----------
    tools/auto.py runs on a schedule (GitHub Actions, .github/workflows/auto-data.yml) and writes auto.json to the
-   repo's `data` branch: fantasy points, box scores and defense vs position (nflverse player stats), finals and
-   betting lines (nflverse schedule), the official injury report (nflverse) and stadium forecasts (Open-Meteo).
-   The page loads it on open and every 15 minutes and merges it into WEEKS:
+   repo's `data` branch. The page loads it on open and every 15 minutes and merges it into WEEKS (tools/auto.py
+   "inline" applies the same rules when it writes the file into the page):
+   - build: the weekly rebuild for the current and next week (status, dates, byes, GAMES, DEF, GP, defThrough,
+     IRD, reportsFor). It replaces a week that is missing, still a preview, or was built this way (auto:true);
+     a week built by hand keeps its own.
+   - STARTERS and FILLIN (ESPN depth chart, injury fill-ins, usage check), team by team: a team whose game has
+     kicked off keeps its lineup, and otherwise the newer of the page's and the file's lineup wins.
    - FP, BOX and OTH merge player by player (team by team for OTH); ALT replaces; VPOS replaces when it counts
-     at least as many weeks; SCORES fill games the page has no final for
-   - ODDS, WX and the injury report (INJ, DINJ, OLINJ) apply to the current week and later. Each category replaces
-     the page's own when it changed more recently than the page was last updated (updatedAt); otherwise it only
+     at least as many weeks; SCORES fill games the page has no final for.
+   - ODDS, WX and the injury report (INJ, DINJ, OLINJ) apply to the current week and later. Each replaces the
+     page's own when it changed more recently than the page was last updated (updatedAt); otherwise it only
      fills games and teams the page has nothing for.
+   - BIO adds birthdays and hometowns for players the page has none for.
    If the file can't be loaded (offline, or inside the Claude artifact viewer) the page keeps its own data. */
 const AUTO_URL="https://raw.githubusercontent.com/OGChickyTendies/Matchup-Board/data/auto.json";
 (()=>{
   let seen="";
-  function merge(n,d){
-    const w=WEEKS[n];if(!w)return;
-    const at=d.at||{},newer=c=>!!at[c]&&Date.parse(at[c])>(Date.parse(w.updatedAt||"")||0);
+  const mtLabel=t=>{const d=new Date(t),f=o=>d.toLocaleString("en-US",{timeZone:"America/Denver",...o});return `${f({weekday:"short"})} ${f({month:"short"})} ${f({day:"numeric"})}, ${f({hour:"numeric",minute:"2-digit"})} MT`};
+  function merge(n,d,cur){
+    let w=WEEKS[n];
+    const at=d.at||{};
+    if(d.build){
+      if(!w)w=WEEKS[n]={INJ:{},FILLIN:{},WX:{},DINJ:{},OLINJ:{},ODDS:{},STARTERS:{}};
+      if(w.auto||w.status==="preview"||!w.GAMES){Object.assign(w,JSON.parse(JSON.stringify(d.build)));w.auto=true;if(!d.build.reportsFor)delete w.reportsFor}
+    }
+    if(!w)return;
+    const upd=Date.parse(w.updatedAt||"")||0,newer=c=>!!at[c]&&Date.parse(at[c])>upd;
     const mix=(mine,theirs,win)=>win?{...(mine||{}),...theirs}:{...theirs,...(mine||{})};
     if(d.FP)w.FP={...(w.FP||{}),...d.FP};
     if(d.BOX)w.BOX={...(w.BOX||{}),...d.BOX};
@@ -2249,24 +2263,42 @@ const AUTO_URL="https://raw.githubusercontent.com/OGChickyTendies/Matchup-Board/
     if(d.ALT)w.ALT=d.ALT;
     if(d.VPOS&&(!w.VPOS||d.VPOS.thru>=w.VPOS.thru))w.VPOS=d.VPOS;
     if(d.SCORES)w.SCORES=mix(w.SCORES,d.SCORES,false);
-    if(+n<CURRENT_WEEK||w.backfill)return;
+    if(+n<cur||w.backfill)return;
+    if(d.STARTERS){
+      const S=w.STARTERS=w.STARTERS||{},F=w.FILLIN=w.FILLIN||{},kick={},win=newer("lineup"),all=s=>[s[0],s[1],...s[2],s[3]];
+      for(const g of w.GAMES)kick[g[0]]=kick[g[1]]=Date.parse(g[2]);
+      for(const [t,s] of Object.entries(d.STARTERS)){
+        if(S[t]&&((kick[t]||0)<=Date.now()||!win))continue;
+        if(S[t])all(S[t]).forEach(x=>delete F[x]);
+        S[t]=s;all(s).forEach(x=>{if(d.FILLIN&&d.FILLIN[x])F[x]=d.FILLIN[x]});
+      }
+    }
     if(d.ODDS)w.ODDS=mix(w.ODDS,d.ODDS,newer("odds"));
     if(d.WX)w.WX=mix(w.WX,d.WX,newer("weather"));
     if(d.DINJ||d.INJ||d.OLINJ){
       if(newer("injuries")){w.INJ=d.INJ||{};w.DINJ=d.DINJ||{};w.OLINJ=d.OLINJ||{}}
       else{w.INJ=mix(w.INJ,d.INJ||{},false);w.DINJ=mix(w.DINJ,d.DINJ||{},false);w.OLINJ=mix(w.OLINJ,d.OLINJ||{},false)}
-      // the newest of the page's own update and the report it now shows, for the "updated ... ago" card
-      if(+n===CURRENT_WEEK&&newer("injuries")){UPDATED_AT=at.injuries;if(!freshEl.classList.contains("busy"))showIdle()}
+    }
+    const last=Math.max(0,...Object.values(at).map(x=>Date.parse(x)||0));
+    if(w.auto&&last>upd)w.updated=mtLabel(last);
+    // the newest of the page's own update and the data it now shows, for the "updated ... ago" card
+    if(+n===cur&&(newer("injuries")||newer("weather"))){
+      const t=Math.max(newer("injuries")?Date.parse(at.injuries):0,newer("weather")?Date.parse(at.weather):0);
+      if(t>Date.parse(UPDATED_AT)){UPDATED_AT=new Date(t).toISOString();if(!freshEl.classList.contains("busy"))showIdle()}
     }
   }
   async function load(){
     try{
       const r=await fetch(AUTO_URL,{cache:"no-store"});if(!r.ok)return;
       const txt=await r.text();if(txt===seen)return;seen=txt;
-      const data=JSON.parse(txt);
-      for(const [n,d] of Object.entries(data.weeks||{}))merge(n,d);
+      const data=JSON.parse(txt),wk=data.weeks||{};
+      // weeks the file adds count when working out the current week
+      for(const [n,d] of Object.entries(wk))if(d.build&&!WEEKS[n])merge(n,{build:d.build,at:d.at},CURRENT_WEEK);
+      const was=CURRENT_WEEK;CURRENT_WEEK=currentWeek();
+      for(const [n,d] of Object.entries(wk))merge(n,d,CURRENT_WEEK);
+      for(const [k,v] of Object.entries(data.BIO||{}))if(!BIO[k]||BIO[k].length<v.length)BIO[k]=v;
       for(const k in rankCache)delete rankCache[k];
-      loadWeek(WEEK);render();renderDef();
+      loadWeek(WEEK===was?CURRENT_WEEK:WEEK);renderWeeks();render();renderDef();
     }catch(e){/* no auto data: keep the page's own */}
   }
   load();
