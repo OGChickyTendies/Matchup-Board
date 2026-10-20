@@ -1,0 +1,46 @@
+# Keeps the board's self-updating data current: runs tools/auto.py and commits auto.json to the `data`
+# branch, which the page loads from raw.githubusercontent.com (see "auto data" in index.html).
+# Nothing here touches main, so it never triggers a Netlify deploy or collides with board syncs.
+name: Auto data
+
+on:
+  schedule:
+    # every 15 minutes during game windows (UTC): Sunday 1 PM ET through Monday night games,
+    # and Thursday / Monday night games (Friday and Tuesday mornings UTC)
+    - cron: "*/15 13-23 * * 0"
+    - cron: "*/15 0-5 * * 1,2,5"
+    - cron: "*/15 23 * * 1,4"
+    # every 2 hours the rest of the week (injury reports, lines, forecasts)
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site
+      - uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data
+      - name: Build auto.json
+        run: python3 site/tools/auto.py site/index.html data/auto.json
+      - name: Commit if changed
+        working-directory: data
+        run: |
+          if git diff --quiet; then echo "No changes"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -qam "Auto data $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q origin HEAD:data

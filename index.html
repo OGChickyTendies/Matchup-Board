@@ -419,7 +419,7 @@ footer p{margin:0;max-width:110ch}
 <dialog id="pdlg" aria-labelledby="pdName"></dialog>
 
 <footer class="wrap">
-  <p>Scores: ESPN's public scoreboard, loaded live in your browser (every minute while games are on); stored finals are confirmed with Sleeper or nflverse. Box scores and fantasy points: nflverse player stats, usually posted within an hour or two of the final whistle. Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for skill players, offensive lines and defenses: the official NFL injury report (practice participation and game status), with CBS Sports as a backup (Q questionable, D doubtful, O out); final statuses come Friday and inactives 90 minutes before kickoff. Defenders on injured reserve: Ourlads reserve lists, with games started from Pro Football Reference. Weather: RotoWire forecasts. Lines: CBS Sports odds (spreads and totals move during the week). Defense: NFL.com team defense stats, 2026 regular season. Defense vs position: nflverse player stats, the PPR points each defense allows to QBs, RBs, WRs and TEs in games before the week, measured against what those offenses usually score at the position, using 2026 games only (with only a few games played, each defense is pulled slightly toward league average). Ranks also fold in touchdowns allowed per game: the RB rank is 2 parts PPR rating to 1 part rushing TDs allowed to RBs, and the QB, WR and TE ranks are 3 parts PPR rating to 1 part passing TDs allowed (TDs already count in PPR, so their extra weight is kept light). With team yards, the run and pass ranks blend yards with TDs allowed 2 to 1, and the QB rank blends pass yards, passing TDs and sacks 2:1:1. Standard scoring is 1 point per 25 passing yards, 4 per passing TD, −2 per interception, 1 per 10 rushing or receiving yards, 6 per rushing or receiving TD, −2 per fumble lost and 2 per two-point conversion; PPR adds 1 per catch and half PPR 0.5. Birthday cake: the game falls on the player’s birthday (nflverse birth dates, game date in Eastern time). House: the stadium is within 25 miles of his hometown, the birthplace on his ESPN profile (international games never count); both icons show when both apply. Weeks 1–4 lineups are who actually played: the QB with the most pass attempts, the RB with the most carries, and the three WRs and the TE with the most targets. Schedule: CBS Sports. Times are Mountain.</p>
+  <p>Scores: ESPN's public scoreboard, loaded live in your browser (every minute while games are on); stored finals are confirmed with Sleeper or nflverse. Box scores and fantasy points: nflverse player stats, usually posted within an hour or two of the final whistle. Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for skill players, offensive lines and defenses: the official NFL injury report (practice participation and game status, also read through nflverse), with CBS Sports as a backup (Q questionable, D doubtful, O out); final statuses come Friday and inactives 90 minutes before kickoff. Defenders on injured reserve: Ourlads reserve lists, with games started from Pro Football Reference. Weather: RotoWire forecasts, or Open-Meteo forecasts when those are newer. Lines: CBS Sports odds, or the nflverse schedule's lines when those are newer (spreads and totals move during the week). Fantasy points, box scores, the injury report, lines and weather also refresh on their own between updates, from a job that runs every 15 minutes during games and every 2 hours otherwise. Defense: NFL.com team defense stats, 2026 regular season. Defense vs position: nflverse player stats, the PPR points each defense allows to QBs, RBs, WRs and TEs in games before the week, measured against what those offenses usually score at the position, using 2026 games only (with only a few games played, each defense is pulled slightly toward league average). Ranks also fold in touchdowns allowed per game: the RB rank is 2 parts PPR rating to 1 part rushing TDs allowed to RBs, and the QB, WR and TE ranks are 3 parts PPR rating to 1 part passing TDs allowed (TDs already count in PPR, so their extra weight is kept light). With team yards, the run and pass ranks blend yards with TDs allowed 2 to 1, and the QB rank blends pass yards, passing TDs and sacks 2:1:1. Standard scoring is 1 point per 25 passing yards, 4 per passing TD, −2 per interception, 1 per 10 rushing or receiving yards, 6 per rushing or receiving TD, −2 per fumble lost and 2 per two-point conversion; PPR adds 1 per catch and half PPR 0.5. Birthday cake: the game falls on the player’s birthday (nflverse birth dates, game date in Eastern time). House: the stadium is within 25 miles of his hometown, the birthplace on his ESPN profile (international games never count); both icons show when both apply. Weeks 1–4 lineups are who actually played: the QB with the most pass attempts, the RB with the most carries, and the three WRs and the TE with the most targets. Schedule: CBS Sports. Times are Mountain.</p>
 </footer>
 
 <script>
@@ -2187,7 +2187,7 @@ const SITE_URL="https://matchup-board.netlify.app/";
 })();
 
 /* ---------- refresh on open ---------- */
-const UPDATED_AT=WEEKS[CURRENT_WEEK].updatedAt||new Date(0).toISOString();
+let UPDATED_AT=WEEKS[CURRENT_WEEK].updatedAt||new Date(0).toISOString();
 const REFRESH_TASK="trig_01JxhzGDigNDKQmhepft2Muh";
 const SERVER="Claude Code Remote";
 const COOLDOWN_MS=2*60*60*1000;
@@ -2223,6 +2223,54 @@ showIdle();
   if(age()>COOLDOWN_MS&&!recentlyFired){fire()}
   else if(recentlyFired&&age()>Date.now()-lastFired()){showBusy()}
   else{showIdle();btn.hidden=false}
+})();
+
+/* ---------- auto data ----------
+   tools/auto.py runs on a schedule (GitHub Actions, .github/workflows/auto-data.yml) and writes auto.json to the
+   repo's `data` branch: fantasy points, box scores and defense vs position (nflverse player stats), finals and
+   betting lines (nflverse schedule), the official injury report (nflverse) and stadium forecasts (Open-Meteo).
+   The page loads it on open and every 15 minutes and merges it into WEEKS:
+   - FP, BOX and OTH merge player by player (team by team for OTH); ALT replaces; VPOS replaces when it counts
+     at least as many weeks; SCORES fill games the page has no final for
+   - ODDS, WX and the injury report (INJ, DINJ, OLINJ) apply to the current week and later. Each category replaces
+     the page's own when it changed more recently than the page was last updated (updatedAt); otherwise it only
+     fills games and teams the page has nothing for.
+   If the file can't be loaded (offline, or inside the Claude artifact viewer) the page keeps its own data. */
+const AUTO_URL="https://raw.githubusercontent.com/OGChickyTendies/Matchup-Board/data/auto.json";
+(()=>{
+  let seen="";
+  function merge(n,d){
+    const w=WEEKS[n];if(!w)return;
+    const at=d.at||{},newer=c=>!!at[c]&&Date.parse(at[c])>(Date.parse(w.updatedAt||"")||0);
+    const mix=(mine,theirs,win)=>win?{...(mine||{}),...theirs}:{...theirs,...(mine||{})};
+    if(d.FP)w.FP={...(w.FP||{}),...d.FP};
+    if(d.BOX)w.BOX={...(w.BOX||{}),...d.BOX};
+    if(d.OTH)w.OTH={...(w.OTH||{}),...d.OTH};
+    if(d.ALT)w.ALT=d.ALT;
+    if(d.VPOS&&(!w.VPOS||d.VPOS.thru>=w.VPOS.thru))w.VPOS=d.VPOS;
+    if(d.SCORES)w.SCORES=mix(w.SCORES,d.SCORES,false);
+    if(+n<CURRENT_WEEK||w.backfill)return;
+    if(d.ODDS)w.ODDS=mix(w.ODDS,d.ODDS,newer("odds"));
+    if(d.WX)w.WX=mix(w.WX,d.WX,newer("weather"));
+    if(d.DINJ||d.INJ||d.OLINJ){
+      if(newer("injuries")){w.INJ=d.INJ||{};w.DINJ=d.DINJ||{};w.OLINJ=d.OLINJ||{}}
+      else{w.INJ=mix(w.INJ,d.INJ||{},false);w.DINJ=mix(w.DINJ,d.DINJ||{},false);w.OLINJ=mix(w.OLINJ,d.OLINJ||{},false)}
+      // the newest of the page's own update and the report it now shows, for the "updated ... ago" card
+      if(+n===CURRENT_WEEK&&newer("injuries")){UPDATED_AT=at.injuries;if(!freshEl.classList.contains("busy"))showIdle()}
+    }
+  }
+  async function load(){
+    try{
+      const r=await fetch(AUTO_URL,{cache:"no-store"});if(!r.ok)return;
+      const txt=await r.text();if(txt===seen)return;seen=txt;
+      const data=JSON.parse(txt);
+      for(const [n,d] of Object.entries(data.weeks||{}))merge(n,d);
+      for(const k in rankCache)delete rankCache[k];
+      loadWeek(WEEK);render();renderDef();
+    }catch(e){/* no auto data: keep the page's own */}
+  }
+  load();
+  setInterval(()=>{if(!document.hidden)load()},15*60e3);
 })();
 </script>
 </body>
