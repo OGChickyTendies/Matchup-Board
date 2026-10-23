@@ -25,7 +25,12 @@ WEEKS (see "auto data" in index.html). Per week:
   SCORES                   finals from the nflverse schedule (backup for the browser's live feed)
   ODDS                     spread and total from the nflverse schedule (home spread = -spread_line)
   INJ, DINJ, OLINJ         the official NFL injury report (nflverse injuries: game status and latest
-                           practice participation), same shapes as the page
+                           practice participation), same shapes as the page, with game-day inactives on top
+  GAMEDAY                  game-day inactives for the current week (ESPN's game summary: from 2 hours before
+                           kickoff, players it lists as Out). A listed player ESPN has as Out becomes O "inactive";
+                           from 30 minutes before kickoff ("cleared"), a Q, D or P player it doesn't is A "active"
+                           (INJ entries are removed). Defensive and line starters (ESPN depth chart) who are Out
+                           without being on the report are added, and an inactive skill starter gets a fill-in.
   WX                       Open-Meteo forecast at each stadium for kickoff, roofs from the schedule
   at                       category -> when it last changed (UTC), so the page can tell whether this file
                            or its own data is newer
@@ -77,7 +82,12 @@ ABROAD = [("wembley", "London", (51.556, -0.280)), ("tottenham", "London", (51.6
 WEATHER_DAYS = 7  # forecast games kicking off within this many days
 BIO_FETCH_MAX = 40  # ESPN profile lookups per run
 CATS = {"build": ("build",), "lineup": ("STARTERS", "FILLIN"), "stats": ("FP", "BOX", "OTH", "ALT", "VPOS"),
-        "scores": ("SCORES",), "odds": ("ODDS",), "injuries": ("INJ", "DINJ", "OLINJ"), "weather": ("WX",)}
+        "scores": ("SCORES",), "odds": ("ODDS",), "injuries": ("INJ", "DINJ", "OLINJ", "GAMEDAY"), "weather": ("WX",)}
+ESPN_SUMMARY = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={}"
+ESPN_FIX = {"WSH": "WAS", "LA": "LAR", "JAC": "JAX"}
+GAMEDAY_FROM = 2 * 3600e3    # watch ESPN from this long before kickoff (inactives come out 90 minutes before)
+GAMEDAY_CLEARED = 30 * 60e3  # from this long before kickoff, a listed player ESPN doesn't have as Out is playing
+GAMEDAY_UNTIL = 2 * 3600e3   # and stop this long after kickoff (later runs keep the last result)
 
 
 def get(url, path):
@@ -233,6 +243,96 @@ def depth_orders(dc_rows):
     return {t: {p: [x for _, x in sorted(l)] for p, l in d.items()} for t, d in out.items()}
 
 
+def first_string(dc_rows):
+    """(team, normalized name) for every offensive lineman and defender listed first on ESPN's latest depth chart."""
+    latest = {}
+    for r in dc_rows:
+        t = fix(r["team"])
+        if r["dt"] > latest.get(t, ""):
+            latest[t] = r["dt"]
+    return {(fix(r["team"]), points.norm(r["player_name"])) for r in dc_rows
+            if r["dt"] == latest[fix(r["team"])] and r["pos_rank"] == "1" and r["pos_grp"] != "Special Teams"
+            and r["pos_abb"] not in ("QB", "RB", "FB", "WR", "TE")}
+
+
+# ---------- game-day inactives ----------
+def espn_outs(event, k):
+    """team -> [[name, position], ...] that ESPN's game summary lists as Out (entries dated after kickoff are
+    in-game injuries and don't count). None when the summary has no injury lists."""
+    req = urllib.request.Request(ESPN_SUMMARY.format(event), headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        d = json.load(resp)
+    if not d.get("injuries"):
+        return None
+    out = {}
+    for t in d["injuries"]:
+        abbr = (t.get("team") or {}).get("abbreviation") or ""
+        l = out.setdefault(ESPN_FIX.get(abbr, abbr), [])
+        for i in t.get("injuries") or []:
+            if i.get("status") != "Out" or (i.get("date") and ms(i["date"]) > k):
+                continue
+            a = i.get("athlete") or {}
+            pos = (a.get("position") or {}).get("abbreviation") or (i.get("position") or {}).get("abbreviation") or ""
+            if a.get("displayName"):
+                l.append([a["displayName"], pos])
+    return {t: sorted(l) for t, l in out.items()}
+
+
+def gameday(sched, cur, prev):
+    """GAMEDAY for the current week: home team -> {"out": {team: [[name, pos], ...]}, "cleared": bool}."""
+    now = time.time() * 1000
+    old = (((prev.get("weeks") or {}).get(str(cur)) or {}).get("GAMEDAY")) or {}
+    out = {}
+    for r in schedule_by_week(sched).get(cur, []):
+        h, k = fix(r["home_team"]), kick_ms(kickoff(r))
+        if now < k - GAMEDAY_FROM:
+            continue
+        if now > k + GAMEDAY_UNTIL or not r.get("espn"):
+            if h in old:
+                out[h] = old[h]
+            continue
+        try:
+            teams = espn_outs(r["espn"], k)
+        except Exception as e:  # keep the last result if ESPN is down
+            print(f"inactives {h}: {e}", file=sys.stderr)
+            teams = None
+        if teams is None:
+            if h in old:
+                out[h] = old[h]
+            continue
+        out[h] = {"out": teams, "cleared": now >= k - GAMEDAY_CLEARED or bool((old.get(h) or {}).get("cleared"))}
+    return out
+
+
+def apply_gameday(inj, starters, gd, firsts):
+    """Game-day inactives on top of the injury report (INJ, DINJ, OLINJ, changed in place)."""
+    INJ, DINJ, OLINJ = inj.setdefault("INJ", {}), inj.setdefault("DINJ", {}), inj.setdefault("OLINJ", {})
+    for g in gd.values():
+        for t, outs in g["out"].items():
+            o = {points.norm(x[0]): x for x in outs}
+            for L, posmap in ((DINJ, DEF), (OLINJ, OL)):
+                lst, seen = L.get(t, []), set()
+                for e in lst:
+                    k = points.norm(e[0])
+                    seen.add(k)
+                    if k in o and e[2] != "O":
+                        e[2:] = ["O", e[3], "inactive"]
+                    elif k not in o and g["cleared"] and e[2] in ("Q", "D", "P"):
+                        e[2:] = ["A", e[3], "active"]
+                for k, (nm, pos) in o.items():
+                    if k not in seen and (t, k) in firsts and posmap.get(pos):
+                        lst.append([nm, posmap[pos], "O", "Not listed", "inactive"])
+                if lst:
+                    L[t] = lst
+            s = starters.get(t)
+            for nm in ([s[0], s[1], *s[2], s[3]] if s else []):
+                e, k = INJ.get(nm), points.norm(nm)
+                if k in o and not (e and e[0] == "O"):
+                    INJ[nm] = ["O", e[1] if e else "Not listed", "inactive"]
+                elif k not in o and g["cleared"] and e and e[0] in ("Q", "D", "P"):
+                    del INJ[nm]
+
+
 def week_injuries(inj, n):
     """(team, normalized name) -> [status letter, injury] for week n's report, skill players only."""
     out = {}
@@ -287,7 +387,7 @@ def team_lineup(t, order, canon, hurt, stats, n):
     return s, fill
 
 
-def build_weeks(ctx, cur, page_weeks, prev):
+def build_weeks(ctx, cur, page_weeks, prev, gd=None):
     """The weekly rebuild for the current week and the next one."""
     sw = schedule_by_week(ctx["sched"])
     canon = {}  # (team, normalized name) -> the name in the player's latest stats row
@@ -310,6 +410,13 @@ def build_weeks(ctx, cur, page_weeks, prev):
              "byes": [t for t in TEAMS if t not in playing], "defThrough": thru, "GP": GP, "DEF": DEFt,
              "GAMES": games, "IRD": ir_defenders(ctx["rosters"], ctx["snaps"], n)}
         hurt = week_injuries(ctx["inj"], n)
+        if n == cur:  # game-day inactives count as out
+            for g in (gd or {}).values():
+                for t, outs in g["out"].items():
+                    for nm, pos in outs:
+                        k = (t, points.norm(nm))
+                        if pos in SKILL and (hurt.get(k) or [""])[0] != "O":
+                            hurt[k] = ["O", "inactive" if not hurt.get(k) else hurt[k][1]]
         kick = {t: kick_ms(g[2]) for g in games for t in g[:2]}
         old = ((prev.get("weeks") or {}).get(str(n)) or {})
         inline = page_weeks.get(str(n)) or {}
@@ -663,7 +770,8 @@ def main():
     sw = schedule_by_week(ctx["sched"])
     allw = {str(n): {"GAMES": [[r["away_team"], r["home_team"], kickoff(r)] for r in sr]} for n, sr in sw.items()}
     cur = current_week(allw)
-    built = build_weeks(ctx, cur, weeks, prev)
+    gd = gameday(ctx["sched"], cur, prev)
+    built = build_weeks(ctx, cur, weeks, prev, gd)
     # every week as the page will see it, built weeks included, for the scripts below
     view = {n: w for n, w in weeks.items()}
     work = page
@@ -674,6 +782,10 @@ def main():
 
     parts = [{str(n): v for n, v in built.items()}, stats_fields(work, stats_csv), schedule_fields(view, ctx["sched"], cur),
              injury_fields(view, ctx["inj"], cur), weather_fields(view, ctx["sched"], page, cur, prev)]
+    if gd:  # game-day inactives on top of the current week's injury report
+        w = parts[3].setdefault(str(cur), {"INJ": {}, "DINJ": {}, "OLINJ": {}})
+        apply_gameday(w, view[str(cur)].get("STARTERS") or {}, gd, first_string(ctx["depth"]))
+        w["GAMEDAY"] = gd
     for n, b in built.items():  # preview week: the teams whose practice reports have started
         if b["build"]["status"] == "preview":
             inj = parts[3].get(str(n)) or {}

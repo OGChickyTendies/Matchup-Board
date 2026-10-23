@@ -419,7 +419,7 @@ footer p{margin:0;max-width:110ch}
 <dialog id="pdlg" aria-labelledby="pdName"></dialog>
 
 <footer class="wrap">
-  <p>Scores: ESPN's public scoreboard, loaded live in your browser (every minute while games are on); stored finals are confirmed with Sleeper or nflverse. Box scores and fantasy points: nflverse player stats, usually posted within an hour or two of the final whistle. Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for skill players, offensive lines and defenses: the official NFL injury report (practice participation and game status, also read through nflverse), with CBS Sports as a backup (Q questionable, D doubtful, O out); final statuses come Friday and inactives 90 minutes before kickoff. Defenders on injured reserve: Ourlads reserve lists, with games started from Pro Football Reference. Weather: RotoWire forecasts, or Open-Meteo forecasts when those are newer. Lines: CBS Sports odds, or the nflverse schedule's lines when those are newer (spreads and totals move during the week). Fantasy points, box scores, the injury report, lines and weather also refresh on their own between updates, from a job that runs every 15 minutes during games and every 2 hours otherwise. Defense: NFL.com team defense stats, 2026 regular season. Defense vs position: nflverse player stats, the PPR points each defense allows to QBs, RBs, WRs and TEs in games before the week, measured against what those offenses usually score at the position, using 2026 games only (with only a few games played, each defense is pulled slightly toward league average). Ranks also fold in touchdowns allowed per game: the RB rank is 2 parts PPR rating to 1 part rushing TDs allowed to RBs, and the QB, WR and TE ranks are 3 parts PPR rating to 1 part passing TDs allowed (TDs already count in PPR, so their extra weight is kept light). With team yards, the run and pass ranks blend yards with TDs allowed 2 to 1, and the QB rank blends pass yards, passing TDs and sacks 2:1:1. Standard scoring is 1 point per 25 passing yards, 4 per passing TD, −2 per interception, 1 per 10 rushing or receiving yards, 6 per rushing or receiving TD, −2 per fumble lost and 2 per two-point conversion; PPR adds 1 per catch and half PPR 0.5. Birthday cake: the game falls on the player’s birthday (nflverse birth dates, game date in Eastern time). House: the stadium is within 25 miles of his hometown, the birthplace on his ESPN profile (international games never count); both icons show when both apply. Weeks 1–4 lineups are who actually played: the QB with the most pass attempts, the RB with the most carries, and the three WRs and the TE with the most targets. Schedule: CBS Sports. Times are Mountain.</p>
+  <p>Scores: ESPN's public scoreboard, loaded live in your browser (every minute while games are on); stored finals are confirmed with Sleeper or nflverse. Box scores and fantasy points: nflverse player stats, usually posted within an hour or two of the final whistle. Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for skill players, offensive lines and defenses: the official NFL injury report (practice participation and game status, also read through nflverse), with CBS Sports as a backup (Q questionable, D doubtful, O out); final statuses come Friday, and game-day inactives (from ESPN's game data, about 90 minutes before kickoff) update on their own. Defenders on injured reserve: Ourlads reserve lists, with games started from Pro Football Reference. Weather: RotoWire forecasts, or Open-Meteo forecasts when those are newer. Lines: CBS Sports odds, or the nflverse schedule's lines when those are newer (spreads and totals move during the week). Fantasy points, box scores, the injury report, lines and weather also refresh on their own between updates, from a job that runs every 15 minutes during games and every 2 hours otherwise. Defense: NFL.com team defense stats, 2026 regular season. Defense vs position: nflverse player stats, the PPR points each defense allows to QBs, RBs, WRs and TEs in games before the week, measured against what those offenses usually score at the position, using 2026 games only (with only a few games played, each defense is pulled slightly toward league average). Ranks also fold in touchdowns allowed per game: the RB rank is 2 parts PPR rating to 1 part rushing TDs allowed to RBs, and the QB, WR and TE ranks are 3 parts PPR rating to 1 part passing TDs allowed (TDs already count in PPR, so their extra weight is kept light). With team yards, the run and pass ranks blend yards with TDs allowed 2 to 1, and the QB rank blends pass yards, passing TDs and sacks 2:1:1. Standard scoring is 1 point per 25 passing yards, 4 per passing TD, −2 per interception, 1 per 10 rushing or receiving yards, 6 per rushing or receiving TD, −2 per fumble lost and 2 per two-point conversion; PPR adds 1 per catch and half PPR 0.5. Birthday cake: the game falls on the player’s birthday (nflverse birth dates, game date in Eastern time). House: the stadium is within 25 miles of his hometown, the birthplace on his ESPN profile (international games never count); both icons show when both apply. Weeks 1–4 lineups are who actually played: the QB with the most pass attempts, the RB with the most carries, and the three WRs and the TE with the most targets. Schedule: CBS Sports. Times are Mountain.</p>
 </footer>
 
 <script>
@@ -2111,6 +2111,68 @@ showIdle();
   else{showIdle();btn.hidden=false}
 })();
 
+/* ---------- game-day inactives ----------
+   From 2 hours before each kickoff the page reads ESPN's game summary for the current week's games (every
+   3 minutes while one is close) and applies the inactive lists the same way tools/auto.py does: a player on
+   the injury report or a listed starter that ESPN has as Out becomes O "inactive", and from 30 minutes before
+   kickoff a questionable, doubtful or limited player it doesn't have as Out is A "active" (skill starters
+   leave INJ). Entries ESPN dates after kickoff are in-game injuries and don't count. GAMEDAY keeps the
+   latest lists (home team -> {out: {team: {normalized name: [name, pos]}}, cleared}) so they can be put back
+   after the auto data reloads. If ESPN can't be reached the page keeps what it has. */
+const GAMEDAY={};
+const normName=s=>String(s).toLowerCase().replace(/[.'\u2019]/g,"").replace(/-/g," ").replace(/\b(jr|sr|ii|iii|iv|v)\b/g,"").replace(/\s+/g," ").trim();
+function applyGameday(){
+  const w=WEEKS[CURRENT_WEEK];if(!w)return false;
+  let ch=false;
+  for(const g of Object.values(GAMEDAY))for(const [t,o] of Object.entries(g.out)){
+    for(const L of [w.DINJ||(w.DINJ={}),w.OLINJ||(w.OLINJ={})])for(const e of L[t]||[]){
+      const k=normName(e[0]);
+      if(o[k]&&e[2]!=="O"){e.splice(2,e.length,"O",e[3],"inactive");ch=true}
+      else if(!o[k]&&g.cleared&&"QDP".includes(e[2])){e.splice(2,e.length,"A",e[3],"active");ch=true}
+    }
+    const s=(w.STARTERS||{})[t];if(!s)continue;
+    for(const nm of [s[0],s[1],...s[2],s[3]]){
+      const I=w.INJ||(w.INJ={}),e=I[nm],k=normName(nm);
+      if(o[k]&&!(e&&e[0]==="O")){I[nm]=["O",e?e[1]:"Not listed","inactive"];ch=true}
+      else if(!o[k]&&g.cleared&&e&&"QDP".includes(e[0])){delete I[nm];ch=true}
+    }
+  }
+  return ch;
+}
+(()=>{
+  const SB=n=>`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${n}&dates=2026`;
+  const SUM=id=>`https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=${id}`;
+  const CODE={WSH:"WAS",LA:"LAR",JAC:"JAX"},code=t=>CODE[t]||t;
+  const get=async u=>{const r=await fetch(u,{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);return r.json()};
+  let ids=null,timer=null;
+  async function tick(){
+    clearTimeout(timer);
+    const w=WEEKS[CURRENT_WEEK],now=Date.now();
+    const close=(w?w.GAMES:[]).filter(g=>{const k=Date.parse(g[2]);return g[2].length>10&&now>=k-2*3600e3&&now<=k+2*3600e3});
+    if(close.length){
+      try{
+        if(!ids||ids.week!==CURRENT_WEEK){
+          const d=await get(SB(CURRENT_WEEK));ids={week:CURRENT_WEEK};
+          for(const ev of d.events||[]){const c=(ev.competitions||[])[0]||{},h=(c.competitors||[]).find(x=>x.homeAway==="home");if(h&&h.team)ids[code(h.team.abbreviation)]=ev.id}
+        }
+        for(const g of close){
+          const id=ids[g[1]];if(!id)continue;
+          const k=Date.parse(g[2]),d=await get(SUM(id));if(!(d.injuries||[]).length)continue;
+          const out={};
+          for(const t of d.injuries){const o=out[code((t.team||{}).abbreviation)]={};
+            for(const i of t.injuries||[]){if(i.status!=="Out"||(i.date&&Date.parse(i.date)>k))continue;
+              const a=i.athlete||{};if(a.displayName)o[normName(a.displayName)]=[a.displayName,(a.position||{}).abbreviation||""]}}
+          GAMEDAY[g[1]]={out,cleared:now>=k-30*60e3||!!(GAMEDAY[g[1]]&&GAMEDAY[g[1]].cleared)};
+        }
+        if(applyGameday()){for(const k in rankCache)delete rankCache[k];loadWeek(WEEK);render();renderDef()}
+      }catch(e){/* ESPN unreachable: keep what the page has */}
+    }
+    if(!document.hidden)timer=setTimeout(tick,close.length?180e3:15*60e3);
+  }
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)tick()});
+  tick();
+})();
+
 /* ---------- auto data ----------
    tools/auto.py runs on a schedule (GitHub Actions, .github/workflows/auto-data.yml) and writes auto.json to the
    repo's `data` branch. The page loads it on open and every 15 minutes and merges it into WEEKS (tools/auto.py
@@ -2181,6 +2243,7 @@ const AUTO_URL="https://raw.githubusercontent.com/OGChickyTendies/Matchup-Board/
       const was=CURRENT_WEEK;CURRENT_WEEK=currentWeek();
       for(const [n,d] of Object.entries(wk))merge(n,d,CURRENT_WEEK);
       for(const [k,v] of Object.entries(data.BIO||{}))if(!BIO[k]||BIO[k].length<v.length)BIO[k]=v;
+      applyGameday();  // the file may predate the inactive lists this page already has
       for(const k in rankCache)delete rankCache[k];
       loadWeek(WEEK===was?CURRENT_WEEK:WEEK);renderWeeks();render();renderDef();
     }catch(e){/* no auto data: keep the page's own */}
