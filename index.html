@@ -2193,9 +2193,10 @@ let finalPoints=()=>{};
     const out={};
     for(const r of await get(SLEEPER(n))){
       const p=r.player||{},s=r.stats||{},nm=[p.first_name,p.last_name].filter(Boolean).join(" ");
-      if(!nm||!r.team||!s.gp)continue;
+      if(!nm||!r.team)continue;
       const b={};for(const k of SKEYS)if(s[k])b[k]=Math.round(s[k]);
       const st=(s.kr_td||0)+(s.pr_td||0)+(s.st_td||0);if(st)b.st_td=st;
+      if(!Object.keys(b).length)continue;
       (out[code(r.team)]=out[code(r.team)]||{})[nm]=b;
     }
     return out;
@@ -2240,7 +2241,10 @@ let finalPoints=()=>{};
           if(!((((d.header||{}).competitions||[{}])[0].status||{}).type||{}).completed){waiting=true;continue}
           const bx=boxes(d),FP=w.FP=w.FP||{},BOX=w.BOX=w.BOX||{};
           if(!(n in slp))slp[n]=await sleeper(n).catch(()=>({}));
-          for(const t of [a,h])if(slp[n][t])bx[t]=slp[n][t];  // Sleeper first; ESPN's box score for a team it doesn't have
+          for(const t of [a,h])if(slp[n][t]){  // Sleeper's line for each player it has, ESPN's box score for the rest
+            const have=new Set(Object.keys(slp[n][t]).map(normName));
+            bx[t]=Object.assign(Object.fromEntries(Object.entries(bx[t]||{}).filter(([nm])=>!have.has(normName(nm)))),slp[n][t]);
+          }
           for(const t of [a,h]){const s=S[t];if(!s||!bx[t])continue;
             const by={};for(const [nm,b] of Object.entries(bx[t]))by[normName(nm)]=b;
             for(const nm of [s[0],s[1],...s[2],s[3]]){if(FP[nm])continue;const b=by[normName(nm)];

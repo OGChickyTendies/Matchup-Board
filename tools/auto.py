@@ -480,12 +480,14 @@ def sleeper_week(n):
     for r in rows:
         p, s = r.get("player") or {}, r.get("stats") or {}
         name = " ".join(x for x in (p.get("first_name"), p.get("last_name")) if x)
-        if not name or not r.get("team") or not s.get("gp"):
+        if not name or not r.get("team"):
             continue
         b = {k: int(s[k]) for k in SLEEPER_KEYS if s.get(k)}
         st = int(s.get("kr_td", 0) + s.get("pr_td", 0) + s.get("st_td", 0))
         if st:
             b["st_td"] = st
+        if not b:
+            continue
         pos = {"FB": "RB"}.get(p.get("position"), p.get("position"))
         out.setdefault(fix(r["team"]), {})[name] = [pos, b]
     return out
@@ -595,9 +597,11 @@ def espn_points(view, sched, cur, stats_part, stats_rows, rosters):
                     print(f"sleeper week {n}: {e}", file=sys.stderr)
                     sleeper[n] = {}
             src = {}
-            for t in (a, h):
+            for t in (a, h):  # Sleeper's line for each player it has, ESPN's for the rest
                 if sleeper[n].get(t):
-                    boxes[t] = {nm: b for nm, (p, b) in sleeper[n][t].items()}
+                    have_s = {points.norm(nm) for nm in sleeper[n][t]}
+                    boxes[t] = {**{nm: b for nm, b in boxes.get(t, {}).items() if points.norm(nm) not in have_s},
+                                **{nm: b for nm, (p, b) in sleeper[n][t].items()}}
                     for nm, (p, b) in sleeper[n][t].items():
                         pos[(t, points.norm(nm))] = pos.get((t, points.norm(nm))) or p
                     src[t] = "Sleeper"
