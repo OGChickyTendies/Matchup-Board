@@ -1,0 +1,34 @@
+# Temporary: checks Sleeper's stats feed (format, names, timing, browser access). Delete after use.
+name: Probe sleeper
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          def get(u):
+              r = urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0", "Origin": "https://matchup-board.netlify.app"}), timeout=60)
+              return r.headers, json.load(r)
+          for u in ["https://api.sleeper.com/stats/nfl/2026/7?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE",
+                    "https://api.sleeper.app/v1/stats/nfl/regular/2026/7",
+                    "https://api.sleeper.com/projections/nfl/2026/7?season_type=regular&position[]=QB",
+                    "https://api.sleeper.app/v1/state/nfl"]:
+              print("=====", u)
+              try:
+                  h, d = get(u)
+                  print("ACAO:", h.get("access-control-allow-origin"), "| cache:", h.get("cache-control"), "| type:", type(d).__name__, "| size:", len(d))
+                  if isinstance(d, list):
+                      for x in d:
+                          p = x.get("player") or {}
+                          if (p.get("last_name") or "") in ("Maye", "Burden", "Stevenson") or x.get("player_id") in ("11564",):
+                              print(json.dumps(x)[:1500])
+                      print("sample keys:", sorted((d[0] or {}).keys()) if d else None)
+                  elif isinstance(d, dict):
+                      ks = list(d.keys())[:3]
+                      print("keys sample:", ks)
+                      for k in ks: print(k, json.dumps(d[k])[:600])
+              except Exception as e:
+                  print("ERR", e)
+          PY
