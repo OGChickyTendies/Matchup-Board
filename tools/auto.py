@@ -22,8 +22,9 @@ WEEKS (see "auto data" in index.html). Per week:
                            targets (tools/lineup.py rules). Teams whose game has kicked off keep their lineup.
   FP, BOX, OTH, ALT, VPOS  fantasy points, box scores and defense vs position (tools/points.py, nflverse
                            player stats), every week that has finished games. nflverse posts a day's games the
-                           next morning, so until then a finished game's FP, BOX and OTH come from ESPN's box
-                           score (two-point conversions aren't in it; nflverse's numbers replace these when they land)
+                           next morning, so until then a finished game's FP, BOX and OTH come from Sleeper's stats
+                           (scored with the board's rules, not Sleeper's), or ESPN's box score if Sleeper doesn't
+                           have the game; nflverse's numbers replace these when they land
   SCORES                   finals from the nflverse schedule (backup for the browser's live feed)
   ODDS                     spread and total from the nflverse schedule (home spread = -spread_line)
   INJ, DINJ, OLINJ         the official NFL injury report (nflverse injuries: game status and latest
@@ -463,7 +464,33 @@ def stats_fields(page, csv_path):
     return out
 
 
-# ---------- fantasy points at the final whistle (ESPN box score) ----------
+# ---------- fantasy points at the final whistle (Sleeper stats, ESPN box score as a fallback) ----------
+SLEEPER_STATS = ("https://api.sleeper.com/stats/nfl/2026/{}?season_type=regular"
+                 "&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=FB")
+SLEEPER_KEYS = ("pass_cmp", "pass_att", "pass_yd", "pass_td", "pass_int", "pass_sack", "rush_att", "rush_yd", "rush_td",
+                "rec", "rec_tgt", "rec_yd", "rec_td", "fum_lost", "pass_2pt", "rush_2pt", "rec_2pt")
+
+
+def sleeper_week(n):
+    """team -> {name: [position, box score with the page's BOX keys]} from Sleeper's stats for week n."""
+    req = urllib.request.Request(SLEEPER_STATS.format(n), headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        rows = json.load(resp)
+    out = {}
+    for r in rows:
+        p, s = r.get("player") or {}, r.get("stats") or {}
+        name = " ".join(x for x in (p.get("first_name"), p.get("last_name")) if x)
+        if not name or not r.get("team") or not s.get("gp"):
+            continue
+        b = {k: int(s[k]) for k in SLEEPER_KEYS if s.get(k)}
+        st = int(s.get("kr_td", 0) + s.get("pr_td", 0) + s.get("st_td", 0))
+        if st:
+            b["st_td"] = st
+        pos = {"FB": "RB"}.get(p.get("position"), p.get("position"))
+        out.setdefault(fix(r["team"]), {})[name] = [pos, b]
+    return out
+
+
 def espn_box(summary):
     """team -> {name: box score with the page's BOX keys} from ESPN's game summary."""
     def num(x):
@@ -521,14 +548,18 @@ def box_line(b):
         parts.append(f"{g('rec')}/{g('rec_tgt')} rec, {g('rec_yd')} yds" + (f", {g('rec_td')} TD" if g("rec_td") else ""))
     if g("fum_lost"):
         parts.append(f"{g('fum_lost')} fumble{'s' if g('fum_lost') > 1 else ''} lost")
+    two = g("pass_2pt") + g("rush_2pt") + g("rec_2pt")
+    if two:
+        parts.append(f"{two} two-pt")
     if g("st_td"):
         parts.append(f"{g('st_td')} return TD")
     return " · ".join(parts) or "No stats recorded"
 
 
 def espn_points(view, sched, cur, stats_part, stats_rows, rosters):
-    """Fill FP, BOX and OTH from ESPN for finished games of the current and previous week that nflverse
-    hasn't posted yet (stats_part, changed in place). Returns the games filled, for the log."""
+    """Fill FP, BOX and OTH for finished games of the current and previous week that nflverse hasn't posted
+    yet (stats_part, changed in place): Sleeper's stats, or ESPN's box score for a team Sleeper doesn't have.
+    Returns the games filled, for the log."""
     now = time.time() * 1000
     have = {(int(r["week"]), r["team"]) for r in stats_rows}
     pos = {}
@@ -537,7 +568,7 @@ def espn_points(view, sched, cur, stats_part, stats_rows, rosters):
         if p in ("QB", "RB", "WR", "TE"):
             pos[(fix(r["team"]), points.norm(r["full_name"]))] = p
     espn = {(int(r["week"]), fix(r["home_team"])): r.get("espn") for r in sched if r["season"] == "2026" and r["game_type"] == "REG"}
-    done = []
+    done, sleeper = [], {}
     for n in (cur - 1, cur):
         w = view.get(str(n))
         if not w or w.get("backfill"):
@@ -557,6 +588,19 @@ def espn_points(view, sched, cur, stats_part, stats_rows, rosters):
             if not st.get("completed"):
                 continue
             boxes = espn_box(d)
+            if n not in sleeper:
+                try:
+                    sleeper[n] = sleeper_week(n)
+                except Exception as e:  # ESPN's box score stands in
+                    print(f"sleeper week {n}: {e}", file=sys.stderr)
+                    sleeper[n] = {}
+            src = {}
+            for t in (a, h):
+                if sleeper[n].get(t):
+                    boxes[t] = {nm: b for nm, (p, b) in sleeper[n][t].items()}
+                    for nm, (p, b) in sleeper[n][t].items():
+                        pos[(t, points.norm(nm))] = pos.get((t, points.norm(nm))) or p
+                    src[t] = "Sleeper"
             part = stats_part.setdefault(str(n), {})
             FP, BOX, OTH = part.setdefault("FP", {}), part.setdefault("BOX", {}), part.setdefault("OTH", {})
             for t in (a, h):
@@ -569,7 +613,7 @@ def espn_points(view, sched, cur, stats_part, stats_rows, rosters):
                     listed.add(points.norm(nm))
                     hit = by.get(points.norm(nm))
                     b = hit[1] if hit else None
-                    if b and any(x in b for x in ("pass_att", "rush_att", "rec", "rec_tgt", "st_td", "fum_lost")):
+                    if b and any(x in b for x in ("pass_att", "rush_att", "rec", "rec_tgt", "st_td", "fum_lost", "pass_2pt", "rush_2pt", "rec_2pt")):
                         FP[nm], BOX[nm] = [*box_points(b), box_line(b)], b
                     else:
                         FP[nm], BOX[nm] = [0, 0, "No stats recorded"], {"dnp": 1}
@@ -581,7 +625,7 @@ def espn_points(view, sched, cur, stats_part, stats_rows, rosters):
                         oth.append([nm, p, *pts, box_line(b)])
                 if oth:
                     OTH[t] = sorted(oth, key=lambda x: -x[3])
-            done.append(f"{a} @ {h}")
+            done.append(f"{a} @ {h} ({', '.join(src.get(t, 'ESPN') for t in (a, h))})")
     return done
 
 
@@ -908,7 +952,7 @@ def main():
              injury_fields(view, ctx["inj"], cur), weather_fields(view, ctx["sched"], page, cur, prev)]
     filled = espn_points(view, ctx["sched"], cur, parts[1], stats, ctx["rosters"])
     if filled:
-        print("Fantasy points from ESPN (nflverse not posted yet): " + ", ".join(filled))
+        print("Fantasy points before nflverse posts: " + ", ".join(filled))
     if gd:  # game-day inactives on top of the current week's injury report
         w = parts[3].setdefault(str(cur), {"INJ": {}, "DINJ": {}, "OLINJ": {}})
         apply_gameday(w, view[str(cur)].get("STARTERS") or {}, gd, first_string(ctx["depth"]))
