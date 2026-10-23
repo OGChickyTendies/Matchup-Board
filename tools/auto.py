@@ -21,7 +21,9 @@ WEEKS (see "auto data" in index.html). Per week:
                            note, and WRs / TEs swapped for a teammate who's been getting clearly more
                            targets (tools/lineup.py rules). Teams whose game has kicked off keep their lineup.
   FP, BOX, OTH, ALT, VPOS  fantasy points, box scores and defense vs position (tools/points.py, nflverse
-                           player stats), every week that has finished games
+                           player stats), every week that has finished games. nflverse posts a day's games the
+                           next morning, so until then a finished game's FP, BOX and OTH come from ESPN's box
+                           score (two-point conversions aren't in it; nflverse's numbers replace these when they land)
   SCORES                   finals from the nflverse schedule (backup for the browser's live feed)
   ODDS                     spread and total from the nflverse schedule (home spread = -spread_line)
   INJ, DINJ, OLINJ         the official NFL injury report (nflverse injuries: game status and latest
@@ -461,6 +463,128 @@ def stats_fields(page, csv_path):
     return out
 
 
+# ---------- fantasy points at the final whistle (ESPN box score) ----------
+def espn_box(summary):
+    """team -> {name: box score with the page's BOX keys} from ESPN's game summary."""
+    def num(x):
+        try:
+            return int(float(x))
+        except (TypeError, ValueError):
+            return 0
+    out = {}
+    for team in (summary.get("boxscore") or {}).get("players") or []:
+        abbr = (team.get("team") or {}).get("abbreviation") or ""
+        boxes = out.setdefault(ESPN_FIX.get(abbr, abbr), {})
+        for g in team.get("statistics") or []:
+            keys, kind = g.get("keys") or [], g.get("name")
+            for a in g.get("athletes") or []:
+                nm = (a.get("athlete") or {}).get("displayName")
+                if not nm:
+                    continue
+                v, b = dict(zip(keys, a.get("stats") or [])), boxes.setdefault(nm, {})
+                add = lambda k, x: b.__setitem__(k, b.get(k, 0) + num(x))
+                if kind == "passing":
+                    c, att = (str(v.get("completions/passingAttempts", "0/0")).split("/") + ["0"])[:2]
+                    add("pass_cmp", c), add("pass_att", att), add("pass_yd", v.get("passingYards"))
+                    add("pass_td", v.get("passingTouchdowns")), add("pass_int", v.get("interceptions"))
+                    add("pass_sack", str(v.get("sacks-sackYardsLost", "0")).split("-")[0])
+                elif kind == "rushing":
+                    add("rush_att", v.get("rushingAttempts")), add("rush_yd", v.get("rushingYards")), add("rush_td", v.get("rushingTouchdowns"))
+                elif kind == "receiving":
+                    add("rec", v.get("receptions")), add("rec_yd", v.get("receivingYards"))
+                    add("rec_td", v.get("receivingTouchdowns")), add("rec_tgt", v.get("receivingTargets"))
+                elif kind == "fumbles":
+                    add("fum_lost", v.get("fumblesLost"))
+                elif kind in ("kickReturns", "puntReturns"):
+                    add("st_td", v.get(kind[:-1] + "Touchdowns"))
+    return {t: {nm: {k: x for k, x in b.items() if x} for nm, b in bx.items()} for t, bx in out.items()}
+
+
+def box_points(b):
+    """[standard, PPR] from a box score (the page's boxPts)."""
+    g = lambda k: b.get(k, 0)
+    std = g("pass_yd") * .04 + g("pass_td") * 4 - g("pass_int") * 2 + (g("rush_yd") + g("rec_yd")) * .1 \
+        + (g("rush_td") + g("rec_td") + g("st_td")) * 6 - g("fum_lost") * 2 + (g("pass_2pt") + g("rush_2pt") + g("rec_2pt")) * 2
+    return [round(std, 2), round(std + g("rec"), 2)]
+
+
+def box_line(b):
+    """The stat line tools/points.py writes, from a box score."""
+    g = lambda k: b.get(k, 0)
+    parts = []
+    if g("pass_att"):
+        parts.append(f"{g('pass_cmp')}/{g('pass_att')}, {g('pass_yd')} pass yds" + (f", {g('pass_td')} TD" if g("pass_td") else "")
+                     + (f", {g('pass_int')} INT" if g("pass_int") else ""))
+    if g("rush_att"):
+        parts.append(f"{g('rush_att')} car, {g('rush_yd')} rush yds" + (f", {g('rush_td')} TD" if g("rush_td") else ""))
+    if g("rec_tgt") or g("rec"):
+        parts.append(f"{g('rec')}/{g('rec_tgt')} rec, {g('rec_yd')} yds" + (f", {g('rec_td')} TD" if g("rec_td") else ""))
+    if g("fum_lost"):
+        parts.append(f"{g('fum_lost')} fumble{'s' if g('fum_lost') > 1 else ''} lost")
+    if g("st_td"):
+        parts.append(f"{g('st_td')} return TD")
+    return " · ".join(parts) or "No stats recorded"
+
+
+def espn_points(view, sched, cur, stats_part, stats_rows, rosters):
+    """Fill FP, BOX and OTH from ESPN for finished games of the current and previous week that nflverse
+    hasn't posted yet (stats_part, changed in place). Returns the games filled, for the log."""
+    now = time.time() * 1000
+    have = {(int(r["week"]), r["team"]) for r in stats_rows}
+    pos = {}
+    for r in rosters:
+        p = {"FB": "RB"}.get(r["position"], r["position"])
+        if p in ("QB", "RB", "WR", "TE"):
+            pos[(fix(r["team"]), points.norm(r["full_name"]))] = p
+    espn = {(int(r["week"]), fix(r["home_team"])): r.get("espn") for r in sched if r["season"] == "2026" and r["game_type"] == "REG"}
+    done = []
+    for n in (cur - 1, cur):
+        w = view.get(str(n))
+        if not w or w.get("backfill"):
+            continue
+        for a, h, iso, *_ in w["GAMES"]:
+            k = kick_ms(iso)
+            if now < k + 2.5 * 3600e3 or now > k + 4 * 86400e3 or ((n, a) in have and (n, h) in have) or not espn.get((n, h)):
+                continue
+            try:
+                req = urllib.request.Request(ESPN_SUMMARY.format(espn[(n, h)]), headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    d = json.load(resp)
+            except Exception as e:
+                print(f"box score {a}@{h}: {e}", file=sys.stderr)
+                continue
+            st = (((d.get("header") or {}).get("competitions") or [{}])[0].get("status") or {}).get("type") or {}
+            if not st.get("completed"):
+                continue
+            boxes = espn_box(d)
+            part = stats_part.setdefault(str(n), {})
+            FP, BOX, OTH = part.setdefault("FP", {}), part.setdefault("BOX", {}), part.setdefault("OTH", {})
+            for t in (a, h):
+                if t not in boxes or (n, t) in have:
+                    continue
+                s = (w.get("STARTERS") or {}).get(t)
+                listed = set()
+                by = {points.norm(nm): (nm, b) for nm, b in boxes[t].items()}
+                for nm in ([s[0], s[1], *s[2], s[3]] if s else []):
+                    listed.add(points.norm(nm))
+                    hit = by.get(points.norm(nm))
+                    b = hit[1] if hit else None
+                    if b and any(x in b for x in ("pass_att", "rush_att", "rec", "rec_tgt", "st_td", "fum_lost")):
+                        FP[nm], BOX[nm] = [*box_points(b), box_line(b)], b
+                    else:
+                        FP[nm], BOX[nm] = [0, 0, "No stats recorded"], {"dnp": 1}
+                oth = []
+                for k2, (nm, b) in by.items():
+                    p = pos.get((t, k2))
+                    pts = box_points(b)
+                    if k2 not in listed and p and (pts[0] or pts[1]):
+                        oth.append([nm, p, *pts, box_line(b)])
+                if oth:
+                    OTH[t] = sorted(oth, key=lambda x: -x[3])
+            done.append(f"{a} @ {h}")
+    return done
+
+
 # ---------- schedule: finals and lines ----------
 def schedule_fields(weeks, sched, cur):
     by_pair = {}
@@ -782,6 +906,9 @@ def main():
 
     parts = [{str(n): v for n, v in built.items()}, stats_fields(work, stats_csv), schedule_fields(view, ctx["sched"], cur),
              injury_fields(view, ctx["inj"], cur), weather_fields(view, ctx["sched"], page, cur, prev)]
+    filled = espn_points(view, ctx["sched"], cur, parts[1], stats, ctx["rosters"])
+    if filled:
+        print("Fantasy points from ESPN (nflverse not posted yet): " + ", ".join(filled))
     if gd:  # game-day inactives on top of the current week's injury report
         w = parts[3].setdefault(str(cur), {"INJ": {}, "DINJ": {}, "OLINJ": {}})
         apply_gameday(w, view[str(cur)].get("STARTERS") or {}, gd, first_string(ctx["depth"]))
