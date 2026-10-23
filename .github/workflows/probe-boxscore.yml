@@ -1,0 +1,23 @@
+# Temporary: shows the shape of ESPN's box score for a finished game. Delete after use.
+name: Probe boxscore
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          u = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=401873010"
+          d = json.load(urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=30))
+          print("status", json.dumps(d.get("header", {}).get("competitions", [{}])[0].get("status", {}))[:300])
+          for team in d["boxscore"]["players"]:
+              print("TEAM", team["team"]["abbreviation"])
+              for g in team["statistics"]:
+                  print(" GROUP", g.get("name"), "keys", g.get("keys"), "labels", g.get("labels"))
+                  for a in g.get("athletes", [])[:3]:
+                      at = a.get("athlete", {})
+                      print("   ", at.get("displayName"), at.get("id"), (at.get("position") or {}).get("abbreviation"), a.get("stats"))
+          sp = d.get("scoringPlays") or []
+          print("scoringPlays", len(sp), [p.get("text") for p in sp][:12])
+          PY
