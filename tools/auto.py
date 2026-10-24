@@ -532,7 +532,7 @@ def espn_box(summary):
 def box_points(b):
     """[standard, PPR] from a box score (the page's boxPts)."""
     g = lambda k: b.get(k, 0)
-    std = g("pass_yd") * .04 + g("pass_td") * 4 - g("pass_int") * 2 + (g("rush_yd") + g("rec_yd")) * .1 \
+    std = g("pass_yd") * .04 + g("pass_td") * 4 - g("pass_int") + (g("rush_yd") + g("rec_yd")) * .1 \
         + (g("rush_td") + g("rec_td") + g("st_td")) * 6 - g("fum_lost") * 2 + (g("pass_2pt") + g("rush_2pt") + g("rec_2pt")) * 2
     return [round(std, 2), round(std + g("rec"), 2)]
 

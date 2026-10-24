@@ -46,6 +46,11 @@ def num(x):
         return 0.0
 
 
+def fpts(r, col):
+    # nflverse scores interceptions at -2; the board uses -1 like Sleeper
+    return num(r.get(col)) + num(r.get("passing_interceptions"))
+
+
 def stat_line(r):
     i = lambda k: int(num(r.get(k)))
     parts = []
@@ -172,7 +177,7 @@ def vpos_for_week(rows, n, last=None):
         g = tg.setdefault(key, {"def": r["opponent_team"], "rb_rtd": 0.0, "ptd": 0.0, **{p: [0.0, 0.0] for p in VPOS_KEYS}})
         pos = VPOS_POS.get(r["position"])
         if pos:
-            g[pos][0] += num(r.get("fantasy_points_ppr"))
+            g[pos][0] += fpts(r, "fantasy_points_ppr")
             g[pos][1] += vpos_yards(r, pos)
         if pos == "RB":
             g["rb_rtd"] += num(r.get("rushing_tds"))
@@ -194,7 +199,7 @@ def vpos_for_week(rows, n, last=None):
             season_tg[(off, wk)] = before
         rs = sorted(rs, key=lambda r: (-before.get(r["player_display_name"], 0), -num(r["targets"])) if before else (-num(r["targets"]),))
         for i, r in enumerate(rs[:3]):
-            tg[(gid, off)][f"WR{i + 1}"] = [num(r.get("fantasy_points_ppr")), num(r.get("receiving_yards"))]
+            tg[(gid, off)][f"WR{i + 1}"] = [fpts(r, "fantasy_points_ppr"), num(r.get("receiving_yards"))]
     out = {}
     for pos in VPOS_KEYS:
         league = sum(g[pos][0] for g in tg.values()) / len(tg)
@@ -346,7 +351,7 @@ def main():
                         fp[name] = [0, 0, "No stats recorded"]
                         box[name] = {"dnp": 1}
                     else:
-                        fp[name] = [round(num(r["fantasy_points"]), 2), round(num(r["fantasy_points_ppr"]), 2), stat_line(r)]
+                        fp[name] = [round(fpts(r, "fantasy_points"), 2), round(fpts(r, "fantasy_points_ppr"), 2), stat_line(r)]
                         box[name] = box_row(r)
                 # teammates the depth chart passed over who outscored a listed starter at the same position
                 listed = {"QB": [s[0]], "RB": [s[1]], "WR": list(s[2]), "TE": [s[3]]}
@@ -357,15 +362,15 @@ def main():
                     low = min(names, key=lambda x: fp.get(x, [0, 0])[1])
                     lowp = fp.get(low, [0, 0])[1]
                     better = sorted((r for r in trows if VPOS_POS.get(r["position"]) == pos and norm(r["player_display_name"]) not in lnorm
-                                     and num(r["fantasy_points_ppr"]) >= lowp + ALT_MIN), key=lambda r: -num(r["fantasy_points_ppr"]))[:2]
+                                     and fpts(r, "fantasy_points_ppr") >= lowp + ALT_MIN), key=lambda r: -fpts(r, "fantasy_points_ppr"))[:2]
                     if better:
-                        alt[low] = [[r["player_display_name"], round(num(r["fantasy_points"]), 2), round(num(r["fantasy_points_ppr"]), 2)] for r in better]
+                        alt[low] = [[r["player_display_name"], round(fpts(r, "fantasy_points"), 2), round(fpts(r, "fantasy_points_ppr"), 2)] for r in better]
                 others = [r for r in trows if VPOS_POS.get(r["position"]) and norm(r["player_display_name"]) not in lnorm
-                          and (num(r["fantasy_points"]) or num(r["fantasy_points_ppr"]))]
-                others.sort(key=lambda r: -num(r["fantasy_points_ppr"]))
+                          and (fpts(r, "fantasy_points") or fpts(r, "fantasy_points_ppr"))]
+                others.sort(key=lambda r: -fpts(r, "fantasy_points_ppr"))
                 if others:
-                    oth[t] = [[r["player_display_name"], VPOS_POS[r["position"]], round(num(r["fantasy_points"]), 2),
-                               round(num(r["fantasy_points_ppr"]), 2), stat_line(r)] for r in others]
+                    oth[t] = [[r["player_display_name"], VPOS_POS[r["position"]], round(fpts(r, "fantasy_points"), 2),
+                               round(fpts(r, "fantasy_points_ppr"), 2), stat_line(r)] for r in others]
                 else:
                     oth.pop(t, None)
         if not fp and not made_lineups:
