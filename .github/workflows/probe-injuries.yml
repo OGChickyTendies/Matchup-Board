@@ -1,0 +1,37 @@
+name: probe-injuries
+on:
+  push:
+    branches: [probe-injuries]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json,urllib.request
+          def get(u):
+              return json.load(urllib.request.urlopen(urllib.request.Request(u,headers={"User-Agent":"Mozilla/5.0"}),timeout=30))
+          sb=get("https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=7&dates=2026")
+          for ev in sb["events"]:
+              c=ev["competitions"][0];teams={x["homeAway"]:x["team"] for x in c["competitors"]}
+              if teams["home"]["abbreviation"] not in ("NYJ","ARI","LV"):continue
+              s=get(f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={ev['id']}")
+              for t in s.get("injuries",[]):
+                  print("SUMMARY",ev["shortName"],t["team"]["abbreviation"],len(t.get("injuries",[])),[(i["athlete"]["displayName"],i["status"]) for i in t.get("injuries",[])])
+              for side in teams.values():
+                  tid=side["id"]
+                  try:
+                      d=get(f"https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/teams/{tid}/injuries?limit=200")
+                      items=d.get("items",[])
+                      out=[]
+                      for it in items[:60]:
+                          x=get(it["$ref"]);a=x.get("athlete",{})
+                          an=get(a["$ref"])["displayName"] if "$ref" in a else "?"
+                          out.append((an,x.get("status"),x.get("date")))
+                      print("CORE",side["abbreviation"],d.get("count"),[o for o in out if o[2] and o[2]>="2026-10-24"])
+                  except Exception as e: print("CORE ERR",side["abbreviation"],e)
+                  try:
+                      r=get(f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/{tid}/injuries")
+                      print("SITE",side["abbreviation"],json.dumps(r)[:600])
+                  except Exception as e: print("SITE ERR",side["abbreviation"],e)
+          PY
