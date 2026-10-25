@@ -88,6 +88,9 @@ CATS = {"build": ("build",), "lineup": ("STARTERS", "FILLIN"), "stats": ("FP", "
         "scores": ("SCORES",), "odds": ("ODDS",), "injuries": ("INJ", "DINJ", "OLINJ", "GAMEDAY"), "weather": ("WX",)}
 ESPN_SUMMARY = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={}"
 ESPN_FIX = {"WSH": "WAS", "LA": "LAR", "JAC": "JAX"}
+# the game summary lists only each team's 5 latest injury entries; the team's injury feed has the rest
+ESPN_TEAM_INJ = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/teams/{}/injuries?limit=100"
+TEAM_INJ_MAX = 40  # entries read per team, newest first
 GAMEDAY_FROM = 2 * 3600e3    # watch ESPN from this long before kickoff (inactives come out 90 minutes before)
 GAMEDAY_CLEARED = 30 * 60e3  # from this long before kickoff, a listed player ESPN doesn't have as Out is playing
 GAMEDAY_UNTIL = 2 * 3600e3   # and stop this long after kickoff (later runs keep the last result)
@@ -259,15 +262,44 @@ def first_string(dc_rows):
 
 
 # ---------- game-day inactives ----------
-def espn_outs(event, k):
-    """team -> [[name, position], ...] that ESPN's game summary lists as Out (entries dated after kickoff are
-    in-game injuries and don't count). None when the summary has no injury lists."""
-    req = urllib.request.Request(ESPN_SUMMARY.format(event), headers={"User-Agent": "Mozilla/5.0"})
+def espn_json(url):
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
-        d = json.load(resp)
+        return json.load(resp)
+
+
+def team_outs(tid, k):
+    """[[name, position], ...] that ESPN's injury feed for team tid has as Out, dated on game day before kickoff."""
+    out = []
+    for it in (espn_json(ESPN_TEAM_INJ.format(tid)).get("items") or [])[:TEAM_INJ_MAX]:
+        x = espn_json(it["$ref"])
+        t = ms(x.get("date") or "")
+        if t and t < k - 86400e3:  # newest first: older entries are last week's report
+            break
+        if x.get("status") != "Out" or t > k or "$ref" not in (x.get("athlete") or {}):
+            continue
+        a = espn_json(x["athlete"]["$ref"])
+        if a.get("displayName"):
+            out.append([a["displayName"], (a.get("position") or {}).get("abbreviation") or ""])
+    return out
+
+
+def espn_outs(event, k):
+    """team -> [[name, position], ...] that ESPN lists as Out for the game: the game summary's injury lists plus
+    each team's injury feed (entries dated after kickoff are in-game injuries and don't count). None when the
+    summary has no injury lists."""
+    d = espn_json(ESPN_SUMMARY.format(event))
     if not d.get("injuries"):
         return None
     out = {}
+    for c in (((d.get("header") or {}).get("competitions") or [{}])[0].get("competitors") or []):
+        tm = c.get("team") or {}
+        abbr = tm.get("abbreviation") or ""
+        if tm.get("id"):
+            try:
+                out[ESPN_FIX.get(abbr, abbr)] = team_outs(tm["id"], k)
+            except Exception as e:  # the summary's lists still count
+                print(f"injury feed {abbr}: {e}", file=sys.stderr)
     for t in d["injuries"]:
         abbr = (t.get("team") or {}).get("abbreviation") or ""
         l = out.setdefault(ESPN_FIX.get(abbr, abbr), [])
@@ -276,7 +308,7 @@ def espn_outs(event, k):
                 continue
             a = i.get("athlete") or {}
             pos = (a.get("position") or {}).get("abbreviation") or (i.get("position") or {}).get("abbreviation") or ""
-            if a.get("displayName"):
+            if a.get("displayName") and points.norm(a["displayName"]) not in {points.norm(x[0]) for x in l}:
                 l.append([a["displayName"], pos])
     return {t: sorted(l) for t, l in out.items()}
 
