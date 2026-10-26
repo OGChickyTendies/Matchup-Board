@@ -232,6 +232,8 @@ def vpos_for_week(rows, n, last=None, lines=None):
     td_blend(tg, out, "ptd", ("QB", "WR", "TE", "WR1", "WR2", "WR3"), PASS_TD_WEIGHT)
     if VPOS_BLEND:
         line_blend(tg, out, n, lines)
+    if RB_OUTLOOK:
+        rb_outlook(tg, out, n, lines)
     return {"thru": max(int(r["week"]) for r in prior), "t": dict(sorted(out.items()))}
 
 
@@ -319,6 +321,45 @@ def line_blend(tg, out, n, lines):
 
 
 LINE_OPP = {}  # week -> {defense: offense it faces}, filled by main() from the page's GAMES
+
+# Oct 26, 2026: RB chips rank the backfield, not the defense. Backtest on 2026 Weeks 3-7 (correlation with the RB
+# PPR points actually scored): defense rank -0.06; the offense's recent RB points 0.23; plus half-weighted implied
+# team points 0.25; adding run defense made it worse (0.21). Roxane chose the outlook.
+RB_OUTLOOK = True
+RB_IMPLIED_WEIGHT = 0.5
+
+
+def rb_outlook(tg, out, n, lines):
+    """Replace each defense's RB entry with the outlook for the backfield it faces in week n: the offense's RB PPR
+    points per game (games before week n, a game VPOS_HALF_LIFE weeks older counting half), plus RB_IMPLIED_WEIGHT x
+    the offense's implied points that week, both as z-scores. Rank 32 = best outlook. Entry: [rank, yds/g allowed,
+    PPR/g allowed, adjusted PPR/g allowed, games, rush TD/g allowed, defense rank (PPR + TDs), offense RB PPR/g,
+    "o", offense, implied points or None, offense games]."""
+    import statistics
+    faced = LINE_OPP.get(n) or {}
+    rb = {}
+    for (gid, off), g in tg.items():
+        w = 0.5 ** ((n - 1 - g["wk"]) / VPOS_HALF_LIFE)
+        a = rb.setdefault(off, [0.0, 0.0, 0])
+        a[0] += w * g["RB"][0]
+        a[1] += w
+        a[2] += 1
+    avg = {t: a[0] / a[1] for t, a in rb.items()}
+    rows = {d: off for d, off in faced.items() if d in out and "RB" in out[d] and off in avg}
+    if len(rows) < 4:
+        return
+    z = lambda dct: (lambda m, sd: {k: (v - m) / (sd or 1) for k, v in dct.items()})(statistics.mean(dct.values()), statistics.pstdev(dct.values()))
+    zo = z({d: avg[off] for d, off in rows.items()})
+    imp = {d: (lines or {}).get((n, off)) for d, off in rows.items()}
+    imp = {d: v for d, v in imp.items() if v is not None}
+    zi = z(imp) if len(imp) >= 4 else {}
+    score = {d: zo[d] + RB_IMPLIED_WEIGHT * zi.get(d, 0.0) for d in rows}
+    order = sorted(score, key=lambda d: score[d])
+    for i, d in enumerate(order):
+        e = out[d]["RB"]
+        off = rows[d]
+        # spread over 1-32 even in bye weeks, so the colors mean the same thing every week
+        out[d]["RB"] = [round(1 + i * 31 / (len(order) - 1)), *e[1:6], e[0], round(avg[off], 1), "o", off, imp.get(d), rb[off][2]]
 
 
 RB_TD_WEIGHT = 1 / 3    # share of the RB rank that comes from rushing TDs allowed to RBs
