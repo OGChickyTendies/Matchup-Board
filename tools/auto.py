@@ -893,7 +893,8 @@ def fz_assignments(n, games, nick, names):
     text = re.sub(r"<[^>]+>", "\n", text).replace("&#8217;", "’").replace("&amp;", "&").replace("&nbsp;", " ")
     text = re.sub(r"[ \t]+", " ", text)
     out = {}
-    for a, h, _ in games:
+    for g in games:
+        a, h = g[0], g[1]
         # "Cowboys at Eagles: Alex Kemp" (or "Steelers vs. Saints" abroad), referee within the next few lines
         m = re.search(r"%s\s+(?:at|vs\.?|@)\s+%s" % (re.escape(nick[a]), re.escape(nick[h])), text)
         if not m:
