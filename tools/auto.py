@@ -34,6 +34,11 @@ WEEKS (see "auto data" in index.html). Per week:
                            from 30 minutes before kickoff ("cleared"), a Q, D or P player it doesn't is A "active"
                            (INJ entries are removed). Defensive and line starters (ESPN depth chart) who are Out
                            without being on the report are added, and an inactive skill starter gets a fill-in.
+  REF                      each game's referee, home team -> [referee, flags per game, PI + holding flags per game,
+                           games, league average] for his crew this season (nflverse play-by-play). The referee
+                           comes from the nflverse schedule, which credits them weeks late, or else Football Zebras'
+                           weekly assignments post (or ESPN's game summary from 3 days before kickoff). REFLOG keeps
+                           the referees of games nflverse hasn't credited yet, for the crew numbers
   WX                       Open-Meteo forecast at each stadium for kickoff, roofs from the schedule
   at                       category -> when it last changed (UTC), so the page can tell whether this file
                            or its own data is newer
@@ -85,7 +90,7 @@ ABROAD = [("wembley", "London", (51.556, -0.280)), ("tottenham", "London", (51.6
 WEATHER_DAYS = 7  # forecast games kicking off within this many days
 BIO_FETCH_MAX = 40  # ESPN profile lookups per run
 CATS = {"build": ("build",), "lineup": ("STARTERS", "FILLIN"), "stats": ("FP", "BOX", "OTH", "ALT", "VPOS"),
-        "scores": ("SCORES",), "odds": ("ODDS",), "injuries": ("INJ", "DINJ", "OLINJ", "GAMEDAY"), "weather": ("WX",)}
+        "scores": ("SCORES",), "odds": ("ODDS",), "injuries": ("INJ", "DINJ", "OLINJ", "GAMEDAY"), "weather": ("WX",), "refs": ("REF",)}
 ESPN_SUMMARY = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={}"
 ESPN_FIX = {"WSH": "WAS", "LA": "LAR", "JAC": "JAX"}
 # the game summary lists only each team's 5 latest injury entries; the team's injury feed has the rest
@@ -857,6 +862,111 @@ def bio_fields(page, weeks, prev):
     return {k: v for k, v in out.items() if k in players and len(have.get(k, [])) < 2}
 
 
+# ---------- referees ----------
+PBP = NFLVERSE + "pbp/play_by_play_2026.csv.gz"
+FZ_POST = "https://www.footballzebras.com/{}/week-{}-referee-assignments-2026/"
+# the 2026 referees (Football Zebras' crew list); names nflverse adds later are picked up from the schedule
+REFEREES = ["Brad Allen", "Clete Blakeman", "Carl Cheffers", "Land Clark", "Alan Eck", "Adrian Hill", "Shawn Hochuli",
+            "John Hussey", "Alex Kemp", "Clay Martin", "Alex Moore", "Scott Novak", "Brad Rogers", "Shawn Smith",
+            "Ron Torbert", "Bill Vinovich", "Craig Wrolstad"]
+REF_KEY = ("Pass Interference", "Holding")  # the flags that swing passing and running plays
+
+
+def fz_assignments(n, games, nick, names):
+    """Football Zebras' weekly post (out the Tuesday or Wednesday before): home team -> referee."""
+    # the post's URL has the month it went up: the games' month, or the one before for a week starting early in a month
+    first = kick_ms(min(g[2] for g in games)) / 1000
+    months = sorted({datetime.fromtimestamp(t, timezone.utc).strftime("%Y/%m") for t in (first, first - 7 * 86400)}, reverse=True)
+    html = ""
+    for m in months:
+        try:
+            req = urllib.request.Request(FZ_POST.format(m, n), headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                html = resp.read().decode("utf-8", "replace")
+            break
+        except Exception:
+            continue
+    if not html:
+        return {}
+    text = re.sub(r"<(script|style)\b.*?</\1>", " ", html, flags=re.S | re.I)
+    text = re.sub(r"<[^>]+>", "\n", text).replace("&#8217;", "’").replace("&amp;", "&").replace("&nbsp;", " ")
+    text = re.sub(r"[ \t]+", " ", text)
+    out = {}
+    for a, h, _ in games:
+        # "Cowboys at Eagles: Alex Kemp" (or "Steelers vs. Saints" abroad), referee within the next few lines
+        m = re.search(r"%s\s+(?:at|vs\.?|@)\s+%s" % (re.escape(nick[a]), re.escape(nick[h])), text)
+        if not m:
+            continue
+        near = text[m.end():m.end() + 160]
+        hit = min(((near.find(r), r) for r in names if r in near), default=None)
+        if hit:
+            out[h] = hit[1]
+    return out
+
+
+def espn_referee(event):
+    try:
+        for o in (espn_json(ESPN_SUMMARY.format(event)).get("gameInfo") or {}).get("officials") or []:
+            if ((o.get("position") or {}).get("name") or "").lower() == "referee" and o.get("displayName"):
+                return o["displayName"]
+    except Exception:
+        pass
+    return None
+
+
+def ref_fields(weeks, sched, page, cur, prev, pbp_path):
+    """REF per week (played weeks and the next two): home team -> [referee, flags per game, PI + holding per game, games, league
+    average], from this season's play-by-play. Plus REFLOG, game id -> referee for games nflverse hasn't credited
+    yet, kept between runs."""
+    nick = page_const(page, "TEAMS")
+    reg = [r for r in sched if r["season"] == "2026" and r["game_type"] == "REG"]
+    names = sorted(set(REFEREES) | {r["referee"] for r in reg if r["referee"]}, key=len, reverse=True)
+    log = dict(prev.get("REFLOG") or {})
+    gid = {(r["week"], fix(r["away_team"]), fix(r["home_team"])): r for r in reg}
+    assign = {}
+    for n, w in weeks.items():
+        if int(n) > cur + 1 or w.get("backfill") or not w.get("GAMES"):
+            continue
+        rs = {g[1]: gid.get((str(n), g[0], g[1])) for g in w["GAMES"]}
+        got = {h: (r["referee"] or log.get(r["game_id"])) for h, r in rs.items() if r and (r["referee"] or log.get(r["game_id"]))}
+        if len(got) < len(rs):  # nflverse credits referees weeks late: look up the week's assignments until every game has one
+            fz = fz_assignments(n, [g for g in w["GAMES"] if g[1] not in got], nick, names)
+            for h, r in rs.items():
+                if h in got or not r:
+                    continue
+                ref = fz.get(h)
+                if not ref and r.get("espn") and kick_ms(kickoff(r)) - time.time() * 1000 < 3 * 86400e3:
+                    ref = espn_referee(r["espn"].split(".")[0])
+                if ref:
+                    got[h] = ref
+                    log[r["game_id"]] = ref
+        if got:
+            assign[n] = got
+    # crew numbers: every game this season with plays and a referee
+    ref_of = {r["game_id"]: r["referee"] or log.get(r["game_id"]) for r in reg}
+    flags, key, games = Counter(), Counter(), {}
+    with __import__("gzip").open(pbp_path, "rt", encoding="utf-8") as f:
+        for p in csv.DictReader(f):
+            ref = ref_of.get(p["game_id"])
+            if not ref:
+                continue
+            games.setdefault(ref, set()).add(p["game_id"])
+            if p.get("penalty") == "1":
+                flags[ref] += 1
+                if any(k in (p.get("penalty_type") or "") for k in REF_KEY):
+                    key[ref] += 1
+    total = sum(len(g) for g in games.values())
+    avg = round(sum(flags.values()) / total, 1) if total else None
+    out = {}
+    for n, got in assign.items():
+        out[n] = {"REF": {h: [ref] + ([round(flags[ref] / len(games[ref]), 1), round(key[ref] / len(games[ref]), 1),
+                                       len(games[ref]), avg] if games.get(ref) else [])
+                          for h, ref in got.items()}}
+    # forget games nflverse now credits
+    log = {g: r for g, r in log.items() if not next((x["referee"] for x in reg if x["game_id"] == g), "")}
+    return out, log
+
+
 # ---------- merging, the same rules as the page ----------
 def at_max(at):
     return max((ms(v) for v in (at or {}).values()), default=0)
@@ -893,6 +1003,8 @@ def merge_week(w, d, n, cur, now):
         w["VPOS"] = d["VPOS"]
     if d.get("SCORES"):
         w["SCORES"] = mix(w.get("SCORES"), d["SCORES"], False)
+    if d.get("REF"):
+        w["REF"] = {**(w.get("REF") or {}), **d["REF"]}
     if int(n) < cur or w.get("backfill"):
         return w
     if d.get("STARTERS"):
@@ -986,6 +1098,12 @@ def main():
 
     parts = [{str(n): v for n, v in built.items()}, stats_fields(work, stats_csv), schedule_fields(view, ctx["sched"], cur),
              injury_fields(view, ctx["inj"], cur), weather_fields(view, ctx["sched"], page, cur, prev)]
+    try:  # referees are extra: if a source is down, the rest of the file still updates
+        refs, reflog = ref_fields(view, ctx["sched"], page, cur, prev, d(PBP, "pbp.csv.gz"))
+        parts.append(refs)
+    except Exception as e:
+        print(f"referees skipped: {e}", file=sys.stderr)
+        refs, reflog = {}, prev.get("REFLOG") or {}
     filled = espn_points(view, ctx["sched"], cur, parts[1], stats, ctx["rosters"])
     if filled:
         print("Fantasy points before nflverse posts: " + ", ".join(filled))
@@ -1017,7 +1135,7 @@ def main():
             at[cat] = (old.get("at") or {}).get(cat, stamp) if same else stamp
         w["at"] = at
         out[n] = w
-    result = {"generated": stamp, "currentWeek": cur, "weeks": out, "BIO": bio_fields(page, view, prev)}
+    result = {"generated": stamp, "currentWeek": cur, "weeks": out, "BIO": bio_fields(page, view, prev), "REFLOG": reflog}
     # rewrite only when the data changed, so the branch history shows real updates
     if {k: v for k, v in result.items() if k != "generated"} == {k: v for k, v in prev.items() if k != "generated"}:
         print("No changes.")

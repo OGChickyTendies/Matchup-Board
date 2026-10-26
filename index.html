@@ -128,7 +128,12 @@ input[type=search]::placeholder{color:var(--ink-4)}
 .stat dd.wx{font-family:var(--body);font-weight:600;font-size:13px;line-height:1.3}
 .wxdot{width:7px;height:7px;border-radius:50%;background:var(--soft)}
 .wxdot.w1{background:var(--tough)} .wxdot.w2{background:var(--tough-ink)}
-@media (max-width:420px){.stats{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.stat.wxs{grid-column:1/-1}}
+.stats.r4{grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,1.4fr) minmax(0,1.2fr)}
+.stat.ref dd{font-family:var(--body);font-weight:600;font-size:13px;line-height:1.3}
+.flg{display:inline-block;margin-top:4px;font-family:var(--mono);font-size:12px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.flg.hi{background:var(--tough);color:#3a1a05}.flg.lo{background:var(--soft);color:#1d3a08}.flg.mid{background:var(--neutral);color:var(--ink)}
+.stat.ref small{display:block;font-size:11px;color:var(--ink-3);font-weight:500;margin-top:3px}
+@media (max-width:420px){.stats,.stats.r4{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.stat.wxs,.stat.ref{grid-column:1/-1}}
 
 /* tables */
 .scroll{overflow-x:auto}
@@ -419,7 +424,7 @@ footer p{margin:0;max-width:110ch}
 <dialog id="pdlg" aria-labelledby="pdName"></dialog>
 
 <footer class="wrap">
-  <p>Scores: ESPN's public scoreboard, loaded live in your browser (every minute while games are on); stored finals are confirmed with Sleeper or nflverse. Box scores and fantasy points: Sleeper's stats as soon as a game ends (ESPN's box score if Sleeper doesn't have it yet), scored with this board's rules, then nflverse player stats when those post the next morning. Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for skill players, offensive lines and defenses: the official NFL injury report (practice participation and game status, also read through nflverse), with CBS Sports as a backup (Q questionable, D doubtful, O out); final statuses come Friday, and game-day inactives (from ESPN's game data, about 90 minutes before kickoff) update on their own. Defenders on injured reserve: Ourlads reserve lists, with games started from Pro Football Reference. Weather: RotoWire forecasts, or Open-Meteo forecasts when those are newer. Lines: CBS Sports odds, or the nflverse schedule's lines when those are newer (spreads and totals move during the week). Fantasy points, box scores, the injury report, lines and weather also refresh on their own between updates, from a job that runs every 15 minutes during games and every 2 hours otherwise. Defense: NFL.com team defense stats, 2026 regular season. Defense vs position: nflverse player stats, the PPR points each defense allows to QBs, RBs, WRs and TEs in games before the week, measured against what those offenses usually score at the position, using 2026 games only (with only a few games played, each defense is pulled slightly toward league average). Ranks also fold in touchdowns allowed per game: the RB rank is 2 parts PPR rating to 1 part rushing TDs allowed to RBs, and the QB, WR and TE ranks are 3 parts PPR rating to 1 part passing TDs allowed (TDs already count in PPR, so their extra weight is kept light). With team yards, the run and pass ranks blend yards with TDs allowed 2 to 1, and the QB rank blends pass yards, passing TDs and sacks 2:1:1. Standard scoring is 1 point per 25 passing yards, 4 per passing TD, −1 per interception, 1 per 10 rushing or receiving yards, 6 per rushing or receiving TD, −2 per fumble lost and 2 per two-point conversion; PPR adds 1 per catch and half PPR 0.5. Birthday cake: the game falls on the player’s birthday (nflverse birth dates, game date in Eastern time). House: the stadium is within 25 miles of his hometown, the birthplace on his ESPN profile (international games never count); both icons show when both apply. Weeks 1–4 lineups are who actually played: the QB with the most pass attempts, the RB with the most carries, and the three WRs and the TE with the most targets. Schedule: CBS Sports. Times are Mountain.</p>
+  <p>Scores: ESPN's public scoreboard, loaded live in your browser (every minute while games are on); stored finals are confirmed with Sleeper or nflverse. Box scores and fantasy points: Sleeper's stats as soon as a game ends (ESPN's box score if Sleeper doesn't have it yet), scored with this board's rules, then nflverse player stats when those post the next morning. Starters: Ourlads depth charts, updated Oct 5–7, 2026 (first-string QB, RB, three WR slots, TE), with backups swapped in for starters ruled out. Injury tags for skill players, offensive lines and defenses: the official NFL injury report (practice participation and game status, also read through nflverse), with CBS Sports as a backup (Q questionable, D doubtful, O out); final statuses come Friday, and game-day inactives (from ESPN's game data, about 90 minutes before kickoff) update on their own. Defenders on injured reserve: Ourlads reserve lists, with games started from Pro Football Reference. Weather: RotoWire forecasts, or Open-Meteo forecasts when those are newer. Lines: CBS Sports odds, or the nflverse schedule's lines when those are newer (spreads and totals move during the week). Fantasy points, box scores, the injury report, lines and weather also refresh on their own between updates, from a job that runs every 15 minutes during games and every 2 hours otherwise. Defense: NFL.com team defense stats, 2026 regular season. Defense vs position: nflverse player stats, the PPR points each defense allows to QBs, RBs, WRs and TEs in games before the week, measured against what those offenses usually score at the position, using 2026 games only (with only a few games played, each defense is pulled slightly toward league average). Ranks also fold in touchdowns allowed per game: the RB rank is 2 parts PPR rating to 1 part rushing TDs allowed to RBs, and the QB, WR and TE ranks are 3 parts PPR rating to 1 part passing TDs allowed (TDs already count in PPR, so their extra weight is kept light). With team yards, the run and pass ranks blend yards with TDs allowed 2 to 1, and the QB rank blends pass yards, passing TDs and sacks 2:1:1. Standard scoring is 1 point per 25 passing yards, 4 per passing TD, −1 per interception, 1 per 10 rushing or receiving yards, 6 per rushing or receiving TD, −2 per fumble lost and 2 per two-point conversion; PPR adds 1 per catch and half PPR 0.5. Birthday cake: the game falls on the player’s birthday (nflverse birth dates, game date in Eastern time). House: the stadium is within 25 miles of his hometown, the birthplace on his ESPN profile (international games never count); both icons show when both apply. Referee: Football Zebras’ weekly crew assignments (ESPN’s game data as a backup), with each crew’s flags per game (accepted, declined and offsetting penalties) and pass interference plus holding flags per game from nflverse play-by-play, 2026 games only; orange is 2+ flags a game above the league average, green 2+ below. Weeks 1–4 lineups are who actually played: the QB with the most pass attempts, the RB with the most carries, and the three WRs and the TE with the most targets. Schedule: CBS Sports. Times are Mountain.</p>
 </footer>
 
 <script>
@@ -1594,6 +1599,16 @@ function teamHtml(t,g){
   const fp=sideFp(t);
   return `<div class="team${fav?" fav":""}${fs&&sc>os?" won":""}"><span class="crest">${t}</span><div><h3>${TEAMS[t]}</h3><small>${imp!=null?`Implied <b>${imp.toFixed(1)}</b>`:esc(CITY[t])}${fp?` · ${fp}`:""}</small></div>${s?`<span class="score">${sc}</span>`:""}</div>`;
 }
+/* Referee tile: REF[home] = [referee, flags per game, PI + holding per game, games, league average] (tools/auto.py:
+   Football Zebras' weekly assignments, nflverse play-by-play). Orange = 2+ flags a game over the league average,
+   green = 2+ under. */
+function refTile(h,iso){
+  const r=(W.REF||{})[h];
+  if(!r)return `<div class="stat ref"><dt>Referee</dt><dd>${Date.parse(iso)<Date.now()?"–":"Posts midweek"}</dd></div>`;
+  if(r[1]==null)return `<div class="stat ref"><dt>Referee</dt><dd>${esc(r[0])}<small>First game this season</small></dd></div>`;
+  const d=r[1]-r[4],c=d>=2?"hi":d<=-2?"lo":"mid",l=c==="hi"?"Flag-heavy":c==="lo"?"Lets them play":"About average";
+  return `<div class="stat ref" title="League average ${r[4].toFixed(1)} flags per game"><dt>Referee</dt><dd>${esc(r[0])}<br><span class="flg ${c}">${r[1].toFixed(1)} flags/g</span><small>${l} · PI+holding ${r[2].toFixed(1)}/g · ${r[3]} game${r[3]===1?"":"s"}</small></dd></div>`;
+}
 function gameCard(a,h,iso,note,rowsHtml){
   const card=document.createElement("article");card.className="game";card.id=`g-${a}-${h}`;
   const ia=IMP[a],ih=IMP[h];
@@ -1601,9 +1616,10 @@ function gameCard(a,h,iso,note,rowsHtml){
   if(ia!=null&&ih!=null){const tot=ia+ih,fa=impTier(a)==="s",fh=impTier(h)==="s";
     split=`<div class="split" role="img" aria-label="Implied points ${a} ${ia.toFixed(1)}, ${h} ${ih.toFixed(1)}"><i style="width:${(ia/tot*100).toFixed(1)}%;background:${fa?"var(--soft)":"var(--ink-4)"}"></i><i style="width:${(ih/tot*100).toFixed(1)}%;background:${fh?"var(--soft)":"var(--brand)"}"></i></div>`}
   const o=ODDS[h],w=WX[h];
-  const tiles=W.backfill?"":`<dl class="stats">
+  const tiles=W.backfill?"":`<dl class="stats r4">
     <div class="stat"><dt>Spread</dt><dd>${o?esc(spreadText(a,h)):"–"}</dd></div>
     <div class="stat"><dt>O/U</dt><dd>${o?o[1]:"–"}</dd></div>
+    ${refTile(h,iso)}
     <div class="stat wxs" title="${w?esc(w[0]+" · "+w[1]):""}"><dt><span class="wxdot w${w?w[2]:0}" aria-hidden="true"></span>${w?(w[2]===2?"Weather alert":w[2]===1?"Weather watch":"Weather"):"Weather"}</dt><dd class="wx">${w?esc(w[1]):W.status==="preview"?"Posts closer to kickoff":"Unavailable"}</dd></div></dl>`;
   const fin=scoreText(a,h);
   card.innerHTML=`<div class="game-head"><div>
@@ -2284,6 +2300,7 @@ let finalPoints=()=>{};
    - ODDS, WX and the injury report (INJ, DINJ, OLINJ) apply to the current week and later. Each replaces the
      page's own when it changed more recently than the page was last updated (updatedAt); otherwise it only
      fills games and teams the page has nothing for.
+   - REF (each game's referee and his crew's flag rates this season) replaces the page's own, game by game.
    - BIO adds birthdays and hometowns for players the page has none for.
    If the file can't be loaded (offline, or inside the Claude artifact viewer) the page keeps its own data. */
 const AUTO_URL="https://raw.githubusercontent.com/OGChickyTendies/Matchup-Board/data/auto.json";
@@ -2306,6 +2323,7 @@ const AUTO_URL="https://raw.githubusercontent.com/OGChickyTendies/Matchup-Board/
     if(d.ALT)w.ALT=d.ALT;
     if(d.VPOS&&(!w.VPOS||d.VPOS.thru>=w.VPOS.thru))w.VPOS=d.VPOS;
     if(d.SCORES)w.SCORES=mix(w.SCORES,d.SCORES,false);
+    if(d.REF)w.REF={...(w.REF||{}),...d.REF};
     if(+n<cur||w.backfill)return;
     if(d.STARTERS){
       const S=w.STARTERS=w.STARTERS||{},F=w.FILLIN=w.FILLIN||{},kick={},win=newer("lineup"),all=s=>[s[0],s[1],...s[2],s[3]];
