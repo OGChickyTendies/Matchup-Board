@@ -341,6 +341,10 @@ footer p{margin:0;max-width:110ch}
 .who .bio{display:inline-flex}
 .bio svg{display:block}
 .who .wn{display:flex;align-items:center;font-weight:inherit;min-width:0}
+/* tap-to-explain popover for chips and tiles that carry details (title attribute) */
+.tip{position:fixed;z-index:70;max-width:min(340px,calc(100vw - 24px));padding:10px 12px;border-radius:12px;background:var(--brand-deep);color:var(--on-brand);font-size:13px;line-height:1.45;box-shadow:0 14px 30px -12px rgba(31,53,80,.6)}
+.has-tip{cursor:pointer}
+.chip[title],.rank[title]{cursor:pointer}
 </style>
 
 <header class="site-top">
@@ -2382,6 +2386,27 @@ const AUTO_URL="https://raw.githubusercontent.com/OGChickyTendies/Matchup-Board/
   }
   load();
   setInterval(()=>{if(!document.hidden)load()},15*60e3);
+})();
+/* ---------- tap for details ----------
+   Chips, rank meters, the referee tile, birthday/hometown icons and other bits carry their explanation in a title
+   attribute, which only shows on hover with a mouse. Tapping or clicking one opens the same text in a small box;
+   tapping anywhere else, scrolling or pressing Escape closes it. */
+(()=>{
+  let tip=null,src=null;
+  const close=()=>{if(tip){tip.remove();tip=null;src=null}};
+  document.addEventListener("click",e=>{
+    const el=e.target.closest&&e.target.closest("[title]");
+    if(!el||!el.title||el.closest("button,select,a,input,dialog,.tc-weeks,.tc-nav,.site-top,.filters")||el===document.body){close();return}
+    if(el===src){close();return}
+    close();src=el;
+    tip=document.createElement("div");tip.className="tip";tip.setAttribute("role","tooltip");tip.textContent=el.title;document.body.append(tip);
+    const r=el.getBoundingClientRect(),t=tip.getBoundingClientRect(),m=12;
+    let left=Math.min(Math.max(m,r.left+r.width/2-t.width/2),innerWidth-t.width-m);
+    let top=r.bottom+8;if(top+t.height>innerHeight-m)top=Math.max(m,r.top-t.height-8);
+    tip.style.left=left+"px";tip.style.top=top+"px";
+  });
+  addEventListener("scroll",close,{passive:true});addEventListener("resize",close);
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")close()});
 })();
 </script>
 </body>
