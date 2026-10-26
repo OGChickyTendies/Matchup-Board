@@ -869,7 +869,6 @@ FZ_POST = "https://www.footballzebras.com/{}/week-{}-referee-assignments-2026/"
 REFEREES = ["Brad Allen", "Clete Blakeman", "Carl Cheffers", "Land Clark", "Alan Eck", "Adrian Hill", "Shawn Hochuli",
             "John Hussey", "Alex Kemp", "Clay Martin", "Alex Moore", "Scott Novak", "Brad Rogers", "Shawn Smith",
             "Ron Torbert", "Bill Vinovich", "Craig Wrolstad"]
-REFERR = []  # temporary: why the referee step failed in the last run
 REF_KEY = ("Pass Interference", "Holding")  # the flags that swing passing and running plays
 
 
@@ -1104,10 +1103,8 @@ def main():
         refs, reflog = ref_fields(view, ctx["sched"], page, cur, prev, d(PBP, "pbp.csv.gz"))
         parts.append(refs)
     except Exception as e:
-        import traceback
         print(f"referees skipped: {e}", file=sys.stderr)
         refs, reflog = {}, prev.get("REFLOG") or {}
-        REFERR.append(traceback.format_exc()[-1500:])
     filled = espn_points(view, ctx["sched"], cur, parts[1], stats, ctx["rosters"])
     if filled:
         print("Fantasy points before nflverse posts: " + ", ".join(filled))
@@ -1139,7 +1136,7 @@ def main():
             at[cat] = (old.get("at") or {}).get(cat, stamp) if same else stamp
         w["at"] = at
         out[n] = w
-    result = {"generated": stamp, "currentWeek": cur, "weeks": out, "BIO": bio_fields(page, view, prev), "REFLOG": reflog, **({"REFERR": REFERR} if REFERR else {})}
+    result = {"generated": stamp, "currentWeek": cur, "weeks": out, "BIO": bio_fields(page, view, prev), "REFLOG": reflog}
     # rewrite only when the data changed, so the branch history shows real updates
     if {k: v for k, v in result.items() if k != "generated"} == {k: v for k, v in prev.items() if k != "generated"}:
         print("No changes.")
