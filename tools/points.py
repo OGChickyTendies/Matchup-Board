@@ -28,6 +28,7 @@ import csv, json, re, subprocess, sys, tempfile, os, time
 from datetime import datetime, timezone
 
 URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2026.csv"
+SCHEDULE_URL = "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv"
 PREV_URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_2025.csv"  # last season: prior for defense-vs-position
 TEAM_FIX = {"LA": "LAR"}  # nflverse code -> page code
 SUFFIX = re.compile(r"\b(jr|sr|ii|iii|iv|v)\b")
@@ -150,7 +151,7 @@ def vpos_yards(r, pos):
     return num(r.get("receiving_yards"))
 
 
-def vpos_for_week(rows, n, last=None):
+def vpos_for_week(rows, n, last=None, lines=None):
     """Defense vs position going into week n, from every game played in weeks before n.
 
     For each team-game, add up the PPR points and yards scored by the offense's QBs, RBs,
@@ -174,11 +175,13 @@ def vpos_for_week(rows, n, last=None):
     tg = {}  # (game_id, offense) -> {"def": team, pos: [pts, yds]}
     for r in prior:
         key = (r["game_id"], r["team"])
-        g = tg.setdefault(key, {"def": r["opponent_team"], "rb_rtd": 0.0, "ptd": 0.0, **{p: [0.0, 0.0] for p in VPOS_KEYS}})
+        g = tg.setdefault(key, {"def": r["opponent_team"], "wk": int(r["week"]), "rb_rtd": 0.0, "ptd": 0.0,
+                                **{p: [0.0, 0.0, 0.0] for p in VPOS_KEYS}})
         pos = VPOS_POS.get(r["position"])
         if pos:
             g[pos][0] += fpts(r, "fantasy_points_ppr")
             g[pos][1] += vpos_yards(r, pos)
+            g[pos][2] += opportunities(r, pos)
         if pos == "RB":
             g["rb_rtd"] += num(r.get("rushing_tds"))
         g["ptd"] += num(r.get("passing_tds"))
@@ -199,7 +202,7 @@ def vpos_for_week(rows, n, last=None):
             season_tg[(off, wk)] = before
         rs = sorted(rs, key=lambda r: (-before.get(r["player_display_name"], 0), -num(r["targets"])) if before else (-num(r["targets"]),))
         for i, r in enumerate(rs[:3]):
-            tg[(gid, off)][f"WR{i + 1}"] = [fpts(r, "fantasy_points_ppr"), num(r.get("receiving_yards"))]
+            tg[(gid, off)][f"WR{i + 1}"] = [fpts(r, "fantasy_points_ppr"), num(r.get("receiving_yards")), num(r.get("targets"))]
     out = {}
     for pos in VPOS_KEYS:
         league = sum(g[pos][0] for g in tg.values()) / len(tg)
@@ -227,7 +230,95 @@ def vpos_for_week(rows, n, last=None):
             out.setdefault(d, {})[pos] = [i + 1, round(a[2] / a[3], 1), round(a[1] / a[3], 1), round(adj, 1), a[3]]
     td_blend(tg, out, "rb_rtd", ("RB",), RB_TD_WEIGHT)
     td_blend(tg, out, "ptd", ("QB", "WR", "TE", "WR1", "WR2", "WR3"), PASS_TD_WEIGHT)
+    if VPOS_BLEND:
+        line_blend(tg, out, n, lines)
     return {"thru": max(int(r["week"]) for r in prior), "t": dict(sorted(out.items()))}
+
+
+# Oct 26, 2026: QB / WR / TE ranks (and WR1-3) now come from line_blend(): per-opportunity efficiency allowed with
+# recent games weighted more, blended half and half with the betting line for the offense the defense faces that week.
+# Backtest on 2026 Weeks 3-7 (correlation of the pre-week rank with PPR scored vs that offense's usual, all positions):
+# old ranks 0.03, efficiency 0.06, + recency 0.08, betting lines alone 0.11, efficiency + recency + lines 0.11
+# (QB 0.15 -> 0.24, TE 0.16 -> 0.25). RB ranks keep the PPR + rushing-TD method: nothing tested predicts RB scoring
+# from the defense (all about 0), so the page marks them as a weak signal.
+VPOS_BLEND = True
+VPOS_HALF_LIFE = 3.0   # weeks: a game this many weeks older counts half as much
+VPOS_EFF_SHRINK = 2.0  # pull toward average, in games
+VPOS_LINE_WEIGHT = 0.5
+BLEND_KEYS = ("QB", "WR", "TE", "WR1", "WR2", "WR3")
+
+
+def opportunities(r, pos):
+    """Plays aimed at a position: QB dropbacks and runs, RB carries and targets, WR / TE targets."""
+    if pos == "QB":
+        return num(r.get("attempts")) + num(r.get("sacks_suffered")) + num(r.get("carries"))
+    if pos == "RB":
+        return num(r.get("carries")) + num(r.get("targets"))
+    return num(r.get("targets"))
+
+
+def implied_lines(sched):
+    """{(week, team): implied points} from nflverse schedule rows (spread_line = home margin)."""
+    out = {}
+    for g in sched:
+        if g.get("season") != "2026" or g.get("game_type") != "REG" or g.get("spread_line") in ("", None) or g.get("total_line") in ("", None):
+            continue
+        a, h = TEAM_FIX.get(g["away_team"], g["away_team"]), TEAM_FIX.get(g["home_team"], g["home_team"])
+        sp, tot, w = float(g["spread_line"]), float(g["total_line"]), int(g["week"])
+        out[(w, h)] = (tot + sp) / 2
+        out[(w, a)] = (tot - sp) / 2
+    return out
+
+
+def line_blend(tg, out, n, lines):
+    """Re-rank QB / WR / TE (and WR1-3) for week n: half per-opportunity efficiency allowed (opponent-adjusted,
+    recent games weighted more), half the betting line (the implied points of the offense the defense faces in
+    week n, compared with that offense's implied points in its other games). Without a line for the game, the
+    efficiency alone. Entries become [rank, yds/g, PPR/g, adjusted PPR/g, games, TD/g, efficiency rank,
+    line rank or None, "v", adjusted PPR per opportunity, implied-points edge or None]."""
+    import statistics
+    edge = {}
+    if lines and LINE_OPP:
+        for d, off in LINE_OPP.get(n, {}).items():
+            if (n, off) not in lines:
+                continue
+            others = [v for (w, t), v in lines.items() if t == off and w != n]
+            if others:
+                edge[d] = lines[(n, off)] - sum(others) / len(others)
+    for key in BLEND_KEYS:
+        vals = {k: g[key] for k, g in tg.items() if g[key][2] > 0}
+        if not vals:
+            continue
+        eff = {k: v[0] / v[2] for k, v in vals.items()}
+        league = sum(eff.values()) / len(eff)
+        by_off = {}
+        for (gid, off), e in eff.items():
+            by_off.setdefault(off, []).append((gid, e))
+        acc = {}
+        for (gid, off), e in eff.items():
+            others = [x for g2, x in by_off[off] if g2 != gid]
+            base = (sum(others) + league * VPOS_PRIOR_OFF) / (len(others) + VPOS_PRIOR_OFF)
+            w = 0.5 ** ((n - 1 - tg[(gid, off)]["wk"]) / VPOS_HALF_LIFE)
+            a = acc.setdefault(tg[(gid, off)]["def"], [0.0, 0.0])
+            a[0] += w * (e - base)
+            a[1] += w
+        rate = {d: a[0] / (a[1] + VPOS_EFF_SHRINK) for d, a in acc.items() if d in out and key in out[d]}
+        if not rate:
+            continue
+        z = lambda dct: (lambda m, sd: {k: (v - m) / (sd or 1) for k, v in dct.items()})(statistics.mean(dct.values()), statistics.pstdev(dct.values()))
+        ze = z(rate)
+        ed = {d: edge[d] for d in rate if d in edge}
+        zl = z(ed) if len(ed) >= 4 else {}
+        score = {d: (1 - VPOS_LINE_WEIGHT) * ze[d] + VPOS_LINE_WEIGHT * zl[d] if d in zl else ze[d] for d in rate}
+        eff_rank = {d: i + 1 for i, d in enumerate(sorted(rate, key=lambda d: rate[d]))}
+        line_rank = {d: i + 1 for i, d in enumerate(sorted(zl, key=lambda d: zl[d]))}
+        for i, d in enumerate(sorted(score, key=lambda d: (score[d], rate[d]))):
+            e = out[d][key]
+            out[d][key] = [i + 1, *e[1:6], eff_rank[d], line_rank.get(d), "v", round(rate[d], 2),
+                           round(ed[d], 1) if d in ed else None]
+
+
+LINE_OPP = {}  # week -> {defense: offense it faces}, filled by main() from the page's GAMES
 
 
 RB_TD_WEIGHT = 1 / 3    # share of the RB rank that comes from rushing TDs allowed to RBs
@@ -417,11 +508,22 @@ def main():
     for r in rows:
         teams_by_week.setdefault(int(r["week"]), set()).add(r["team"])
     latest = max((w for w, t in teams_by_week.items() if len(t) >= 24), default=0)
+    # betting lines for the blended QB / WR / TE ranks (nflverse schedule), and who each defense faces each week
+    lines = None
+    try:
+        sched_path = os.path.join(tempfile.gettempdir(), "nflverse_games.csv")
+        if not os.path.exists(sched_path) or time.time() - os.path.getmtime(sched_path) > 3600:
+            subprocess.run(["curl", "-sSfL", "--max-time", "180", "-o", sched_path, SCHEDULE_URL], check=True)
+        lines = implied_lines(list(csv.DictReader(open(sched_path, encoding="utf-8"))))
+    except Exception as e:
+        report.append(f"Defense vs position: no betting lines ({e}); efficiency only")
+    for n, w in weeks.items():
+        LINE_OPP[int(n)] = {**{g[1]: g[0] for g in w.get("GAMES", [])}, **{g[0]: g[1] for g in w.get("GAMES", [])}}
     for n in sorted(weeks, key=int):
-        v = vpos_for_week(rows, int(n), last)
+        v = vpos_for_week(rows, int(n), last, lines)
         hindsight = False
         if not v and latest:
-            # Week 1 has no earlier games: rate it with everything played so far (hindsight, Week 1 included)
+            # Week 1 has no earlier games: rate it with everything played so far (hindsight, Week 1 included; no lines)
             v, hindsight = vpos_for_week(rows, latest + 1, last), True
         if not v:
             continue
