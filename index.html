@@ -130,9 +130,10 @@ input[type=search]::placeholder{color:var(--ink-4)}
 .wxdot.w1{background:var(--tough)} .wxdot.w2{background:var(--tough-ink)}
 .stats.r4{grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,1.4fr) minmax(0,1.2fr)}
 .stat.ref dd{font-family:var(--body);font-weight:600;font-size:13px;line-height:1.3}
-.flg{display:inline-block;margin-top:4px;font-family:var(--mono);font-size:12px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.flg{display:inline-block;margin-top:4px;font-family:var(--mono);font-size:12px;font-weight:700;padding:2px 7px;border-radius:999px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
 .flg.hi{background:var(--tough);color:#3a1a05}.flg.lo{background:var(--soft);color:#1d3a08}.flg.mid{background:var(--neutral);color:var(--ink)}
 .stat.ref small{display:block;font-size:11px;color:var(--ink-3);font-weight:500;margin-top:3px}
+@media (max-width:1060px){.stats.r4{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
 @media (max-width:420px){.stats,.stats.r4{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.stat.wxs,.stat.ref{grid-column:1/-1}}
 
 /* tables */
