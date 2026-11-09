@@ -34,6 +34,8 @@ WEEKS (see "auto data" in index.html). Per week:
                            from 30 minutes before kickoff ("cleared"), a Q, D or P player it doesn't is A "active"
                            (INJ entries are removed). Defensive and line starters (ESPN depth chart) who are Out
                            without being on the report are added, and an inactive skill starter gets a fill-in.
+  REV                      player -> [former team he faces that week, seasons he was on it] (nflverse rosters since
+                           2012); REVKEY = which players and games it was built for
   REF                      each game's referee, home team -> [referee, flags per game, PI + holding flags per game,
                            games, league average] for his crew this season (nflverse play-by-play). The referee
                            comes from the nflverse schedule, which credits them weeks late, or else Football Zebras'
@@ -48,7 +50,7 @@ hometown for. Lines, weather and injuries are written for the current week and l
 
 Needs node and curl (same as tools/points.py).
 """
-import copy, csv, json, os, re, subprocess, sys, tempfile, time, urllib.request
+import copy, csv, hashlib, json, os, re, subprocess, sys, tempfile, time, urllib.request
 from collections import Counter
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -90,7 +92,7 @@ ABROAD = [("wembley", "London", (51.556, -0.280)), ("tottenham", "London", (51.6
 WEATHER_DAYS = 7  # forecast games kicking off within this many days
 BIO_FETCH_MAX = 40  # ESPN profile lookups per run
 CATS = {"build": ("build",), "lineup": ("STARTERS", "FILLIN"), "stats": ("FP", "BOX", "OTH", "ALT", "VPOS"),
-        "scores": ("SCORES",), "odds": ("ODDS",), "injuries": ("INJ", "DINJ", "OLINJ", "GAMEDAY"), "weather": ("WX",), "refs": ("REF",)}
+        "scores": ("SCORES",), "odds": ("ODDS",), "injuries": ("INJ", "DINJ", "OLINJ", "GAMEDAY"), "weather": ("WX",), "refs": ("REF",), "former": ("REV",)}
 ESPN_SUMMARY = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={}"
 ESPN_FIX = {"WSH": "WAS", "LA": "LAR", "JAC": "JAX"}
 # the game summary lists only each team's 5 latest injury entries; the team's injury feed has the rest
@@ -968,6 +970,61 @@ def ref_fields(weeks, sched, page, cur, prev, pbp_path):
     return out, log
 
 
+# ---------- former teams ----------
+ROSTER_URL = NFLVERSE + "rosters/roster_{}.csv"
+WEEKLY_ROSTER_URL = NFLVERSE + "weekly_rosters/roster_weekly_2026.csv"
+REV_FROM = 2012  # earliest season checked
+REV_TEAM = {"LA": "LAR", "OAK": "LV", "SD": "LAC", "STL": "LAR"}
+
+
+def _seasons(years):
+    """[2018, 2019, 2020, 2023] -> "2018–2020, 2023"."""
+    ys, out = sorted(years), []
+    for y in ys:
+        if out and y == out[-1][1] + 1:
+            out[-1][1] = y
+        else:
+            out.append([y, y])
+    return ", ".join(str(a) if a == b else f"{a}–{b}" for a, b in out)
+
+
+def rev_fields(weeks, prev, fetch):
+    """REV per week: player -> [former team he faces, the seasons he was on it], for every player on the board whose
+    opponent that week is a team he was on before (nflverse season rosters since REV_FROM, plus this season's weekly
+    rosters for trades). The rosters are only downloaded when the board's players or games change (REVKEY)."""
+    want = []
+    for n, w in weeks.items():
+        opp = {}
+        for g in w.get("GAMES") or []:
+            opp[g[0]], opp[g[1]] = g[1], g[0]
+        names = [(x, t) for t, st in (w.get("STARTERS") or {}).items() for x in [st[0], st[1], *st[2], st[3]]]
+        names += [(x[0], t) for t, l in (w.get("OTH") or {}).items() for x in l]
+        want += [(n, x, t, opp[t]) for x, t in names if t in opp]
+    key = hashlib.sha1(json.dumps(sorted(want)).encode()).hexdigest()[:16]
+    if prev.get("REVKEY") == key:
+        return {n: {"REV": w["REV"]} for n, w in (prev.get("weeks") or {}).items() if w.get("REV")}, key
+    norm = lambda n: " ".join(re.sub(r"\b(jr|sr|ii|iii|iv|v)\b", "", n.lower().replace(".", "").replace("'", "")
+                                    .replace("’", "").replace("-", " ")).split())
+    hist, ids = {}, {}
+    files = [(y, fetch(ROSTER_URL.format(y), f"roster_{y}.csv")) for y in range(REV_FROM, 2027)]
+    files.append((2026, fetch(WEEKLY_ROSTER_URL, "roster_weekly_2026.csv")))
+    for y, path in files:
+        for r in rows(path):
+            gid, team = r.get("gsis_id"), REV_TEAM.get(r.get("team"), r.get("team"))
+            if not gid or not team:
+                continue
+            hist.setdefault(gid, {}).setdefault(team, set()).add(y)
+            if y == 2026:
+                ids[(norm(r.get("full_name") or ""), team)] = gid
+    out = {}
+    for n, x, t, o in want:
+        gid = ids.get((norm(x), t))
+        yrs = (hist.get(gid) or {}).get(o) if gid else None
+        if yrs:
+            out.setdefault(n, {"REV": {}})["REV"][x] = [o, _seasons(yrs)]
+    return out, key
+
+
 # ---------- merging, the same rules as the page ----------
 def at_max(at):
     return max((ms(v) for v in (at or {}).values()), default=0)
@@ -1006,6 +1063,8 @@ def merge_week(w, d, n, cur, now):
         w["SCORES"] = mix(w.get("SCORES"), d["SCORES"], False)
     if d.get("REF"):
         w["REF"] = {**(w.get("REF") or {}), **d["REF"]}
+    if d.get("REV"):
+        w["REV"] = d["REV"]
     if int(n) < cur or w.get("backfill"):
         return w
     if d.get("STARTERS"):
@@ -1105,6 +1164,13 @@ def main():
     except Exception as e:
         print(f"referees skipped: {e}", file=sys.stderr)
         refs, reflog = {}, prev.get("REFLOG") or {}
+    try:  # former-team tags are extra too
+        revs, revkey = rev_fields(view, prev, d)
+        parts.append(revs)
+    except Exception as e:
+        print(f"former teams skipped: {e}", file=sys.stderr)
+        revkey = prev.get("REVKEY")
+        parts.append({n: {"REV": w["REV"]} for n, w in (prev.get("weeks") or {}).items() if w.get("REV")})
     filled = espn_points(view, ctx["sched"], cur, parts[1], stats, ctx["rosters"])
     if filled:
         print("Fantasy points before nflverse posts: " + ", ".join(filled))
@@ -1136,7 +1202,8 @@ def main():
             at[cat] = (old.get("at") or {}).get(cat, stamp) if same else stamp
         w["at"] = at
         out[n] = w
-    result = {"generated": stamp, "currentWeek": cur, "weeks": out, "BIO": bio_fields(page, view, prev), "REFLOG": reflog}
+    result = {"generated": stamp, "currentWeek": cur, "weeks": out, "BIO": bio_fields(page, view, prev), "REFLOG": reflog,
+              "REVKEY": revkey}
     # rewrite only when the data changed, so the branch history shows real updates
     if {k: v for k, v in result.items() if k != "generated"} == {k: v for k, v in prev.items() if k != "generated"}:
         print("No changes.")
