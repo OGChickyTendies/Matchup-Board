@@ -477,7 +477,7 @@ def main():
                     r = idx.get(norm(name))
                     if r is None:  # fall back to a unique last-name match on the team
                         last = norm(name).split()[-1]
-                        c = [x for k, x in idx.items() if k.split()[-1] == last]
+                        c = [x for k, x in idx.items() if k.split()[-1:] == [last]]
                         r = c[0] if len(c) == 1 else None
                     if r is None:
                         fp[name] = [0, 0, "No stats recorded"]

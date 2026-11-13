@@ -2405,6 +2405,7 @@ const AUTO_URL="https://raw.githubusercontent.com/OGChickyTendies/Matchup-Board/
     if(d.SCORES)w.SCORES=mix(w.SCORES,d.SCORES,false);
     if(d.REF)w.REF={...(w.REF||{}),...d.REF};
     if(d.REV)w.REV=d.REV;
+    if(d.final&&w.auto){for(const k of ["STARTERS","FILLIN","INJ","DINJ","OLINJ","WX","ODDS"])if(d[k])w[k]=JSON.parse(JSON.stringify(d[k]));return}  // a finished week's frozen copy
     if(+n<cur||w.backfill)return;
     if(d.STARTERS){
       const S=w.STARTERS=w.STARTERS||{},F=w.FILLIN=w.FILLIN||{},kick={},win=newer("lineup"),all=s=>[s[0],s[1],...s[2],s[3]];

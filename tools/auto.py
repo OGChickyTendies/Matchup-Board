@@ -98,6 +98,9 @@ ESPN_FIX = {"WSH": "WAS", "LA": "LAR", "JAC": "JAX"}
 # the game summary lists only each team's 5 latest injury entries; the team's injury feed has the rest
 ESPN_TEAM_INJ = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/teams/{}/injuries?limit=100"
 TEAM_INJ_MAX = 40  # entries read per team, newest first
+# a finished week keeps the lineups, injuries, lines and weather it had when it was played: auto.json carries
+# them as a frozen copy (final: true) after the rebuild moves on, so the page never falls back to its preview
+FROZEN = ("build", "STARTERS", "FILLIN", "INJ", "DINJ", "OLINJ", "WX", "ODDS", "GAMEDAY")
 GAMEDAY_FROM = 2 * 3600e3    # watch ESPN from this long before kickoff (inactives come out 90 minutes before)
 GAMEDAY_CLEARED = 30 * 60e3  # from this long before kickoff, a listed player ESPN doesn't have as Out is playing
 GAMEDAY_UNTIL = 2 * 3600e3   # and stop this long after kickoff (later runs keep the last result)
@@ -427,6 +430,18 @@ def team_lineup(t, order, canon, hurt, stats, n):
                 listed.discard(points.norm(cur))
                 listed.add(points.norm(best[0]))
     return s, fill
+
+
+def frozen_weeks(prev, cur):
+    """Weeks before the current one that the rebuild made: the copy auto.json last had of each, marked final."""
+    out = {}
+    for n, w in (prev.get("weeks") or {}).items():
+        if int(n) < cur and w.get("build"):
+            f = {k: copy.deepcopy(w[k]) for k in FROZEN if k in w}
+            f["build"]["status"] = "final"
+            f["final"] = True
+            out[n] = f
+    return out
 
 
 def build_weeks(ctx, cur, page_weeks, prev, gd=None):
@@ -1065,6 +1080,11 @@ def merge_week(w, d, n, cur, now):
         w["REF"] = {**(w.get("REF") or {}), **d["REF"]}
     if d.get("REV"):
         w["REV"] = d["REV"]
+    if d.get("final") and w.get("auto"):  # a finished week: its frozen copy stands as it is
+        for k in ("STARTERS", "FILLIN", "INJ", "DINJ", "OLINJ", "WX", "ODDS"):
+            if k in d:
+                w[k] = copy.deepcopy(d[k])
+        return w
     if int(n) < cur or w.get("backfill"):
         return w
     if d.get("STARTERS"):
@@ -1148,15 +1168,20 @@ def main():
     cur = current_week(allw)
     gd = gameday(ctx["sched"], cur, prev)
     built = build_weeks(ctx, cur, weeks, prev, gd)
+    frozen = frozen_weeks(prev, cur)
     # every week as the page will see it, built weeks included, for the scripts below
     view = {n: w for n, w in weeks.items()}
     work = page
+    for n, f in frozen.items():
+        m = merge_week(weeks.get(n), f, n, cur, time.time() * 1000)
+        view[n] = m
+        work = put_week(work, int(n), m)
     for n, b in built.items():
         m = merge_week(weeks.get(str(n)), {**b, "at": {"build": "2999-01-01T00:00:00Z", "lineup": "2999-01-01T00:00:00Z"}}, str(n), cur, time.time() * 1000)
         view[str(n)] = m
         work = put_week(work, n, m)
 
-    parts = [{str(n): v for n, v in built.items()}, stats_fields(work, stats_csv), schedule_fields(view, ctx["sched"], cur),
+    parts = [frozen, {str(n): v for n, v in built.items()}, stats_fields(work, stats_csv), schedule_fields(view, ctx["sched"], cur),
              injury_fields(view, ctx["inj"], cur), weather_fields(view, ctx["sched"], page, cur, prev)]
     try:  # referees are extra: if a source is down, the rest of the file still updates
         refs, reflog = ref_fields(view, ctx["sched"], page, cur, prev, d(PBP, "pbp.csv.gz"))
@@ -1171,16 +1196,16 @@ def main():
         print(f"former teams skipped: {e}", file=sys.stderr)
         revkey = prev.get("REVKEY")
         parts.append({n: {"REV": w["REV"]} for n, w in (prev.get("weeks") or {}).items() if w.get("REV")})
-    filled = espn_points(view, ctx["sched"], cur, parts[1], stats, ctx["rosters"])
+    filled = espn_points(view, ctx["sched"], cur, parts[2], stats, ctx["rosters"])
     if filled:
         print("Fantasy points before nflverse posts: " + ", ".join(filled))
     if gd:  # game-day inactives on top of the current week's injury report
-        w = parts[3].setdefault(str(cur), {"INJ": {}, "DINJ": {}, "OLINJ": {}})
+        w = parts[4].setdefault(str(cur), {"INJ": {}, "DINJ": {}, "OLINJ": {}})
         apply_gameday(w, view[str(cur)].get("STARTERS") or {}, gd, first_string(ctx["depth"]))
         w["GAMEDAY"] = gd
     for n, b in built.items():  # preview week: the teams whose practice reports have started
         if b["build"]["status"] == "preview":
-            inj = parts[3].get(str(n)) or {}
+            inj = parts[4].get(str(n)) or {}
             teams = sorted({t for k in ("DINJ", "OLINJ") for t in inj.get(k, {})} |
                            {t for t, s in b["STARTERS"].items() if any(x in inj.get("INJ", {}) for x in [s[0], s[1], *s[2], s[3]])})
             if teams:
