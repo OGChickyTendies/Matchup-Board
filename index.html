@@ -2411,7 +2411,7 @@ const AUTO_URL="https://raw.githubusercontent.com/OGChickyTendies/Matchup-Board/
       const S=w.STARTERS=w.STARTERS||{},F=w.FILLIN=w.FILLIN||{},kick={},win=newer("lineup"),all=s=>[s[0],s[1],...s[2],s[3]];
       for(const g of w.GAMES)kick[g[0]]=kick[g[1]]=Date.parse(g[2]);
       for(const [t,s] of Object.entries(d.STARTERS)){
-        if(S[t]&&((kick[t]||0)<=Date.now()||!win))continue;
+        if(S[t]&&!w.auto&&((kick[t]||0)<=Date.now()||!win))continue;  // a week the rebuild made takes its lineup as it is
         if(S[t])all(S[t]).forEach(x=>delete F[x]);
         S[t]=s;all(s).forEach(x=>{if(d.FILLIN&&d.FILLIN[x])F[x]=d.FILLIN[x]});
       }

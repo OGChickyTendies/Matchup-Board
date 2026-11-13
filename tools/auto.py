@@ -432,6 +432,36 @@ def team_lineup(t, order, canon, hurt, stats, n):
     return s, fill
 
 
+def fill_inactives(S, F, gd, orders, canon, inj=None):
+    """Swap game-day inactive starters for the next healthy player on the depth chart (S and F changed in place).
+    The rebuild does this before kickoff; this catches inactives the scheduled run only saw once a game was under way."""
+    for g in (gd or {}).values():
+        for t, outs in g["out"].items():
+            s = S.get(t)
+            if not s or t not in orders:
+                continue
+            out = {points.norm(x[0]) for x in outs}
+            listed = {points.norm(x) for x in [s[0], s[1], *s[2], s[3]]}
+            slots = [("QB", None), ("RB", None), ("WR", 0), ("WR", 1), ("WR", 2), ("TE", None)]
+            for pos, i in slots:
+                x = s[2][i] if pos == "WR" else s[{"QB": 0, "RB": 1, "TE": 3}[pos]]
+                if points.norm(x) not in out:
+                    continue
+                subs = [canon.get((t, points.norm(y)), y) for y in orders[t].get(pos, [])
+                        if y and points.norm(y) not in out and points.norm(y) not in listed]
+                if not subs:
+                    continue
+                sub = subs[0]
+                if pos == "WR":
+                    s[2][i] = sub
+                else:
+                    s[{"QB": 0, "RB": 1, "TE": 3}[pos]] = sub
+                listed.add(points.norm(sub))
+                F.pop(x, None)
+                why = ((inj or {}).get(x) or [None, "Not listed"])[1]
+                F[sub] = f"Starting for {x} ({'inactive' if why == 'Not listed' else why.lower()}, out)"
+
+
 def frozen_weeks(prev, cur):
     """Weeks before the current one that the rebuild made: the copy auto.json last had of each, marked final."""
     out = {}
@@ -1092,7 +1122,7 @@ def merge_week(w, d, n, cur, now):
         kick = {t: kick_ms(g[2]) for g in w["GAMES"] for t in g[:2]}
         win = newer("lineup")
         for t, s in d["STARTERS"].items():
-            if t in S and (kick.get(t, 0) <= now or not win):
+            if t in S and not w.get("auto") and (kick.get(t, 0) <= now or not win):
                 continue
             if t in S:
                 for x in [S[t][0], S[t][1], *S[t][2], S[t][3]]:
@@ -1169,6 +1199,15 @@ def main():
     gd = gameday(ctx["sched"], cur, prev)
     built = build_weeks(ctx, cur, weeks, prev, gd)
     frozen = frozen_weeks(prev, cur)
+    orders = depth_orders(ctx["depth"])
+    canon = {(r["team"], points.norm(r["player_display_name"])): r["player_display_name"]
+             for r in sorted(ctx["stats"], key=lambda r: int(r["week"]))}
+    for f in frozen.values():  # finished weeks: inactives a run saw only after kickoff
+        if f.get("STARTERS"):
+            fill_inactives(f["STARTERS"], f.setdefault("FILLIN", {}), f.get("GAMEDAY"), orders, canon, f.get("INJ"))
+    if cur in built:  # the current week, games already under way included
+        fill_inactives(built[cur]["STARTERS"], built[cur]["FILLIN"], gd, orders, canon,
+                       {canon.get((t, k), k): v for (t, k), v in week_injuries(ctx["inj"], cur).items()})
     # every week as the page will see it, built weeks included, for the scripts below
     view = {n: w for n, w in weeks.items()}
     work = page
